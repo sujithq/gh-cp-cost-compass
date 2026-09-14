@@ -1,0 +1,13 @@
+<a class="docs-link"
+   href="@Url"
+   target="_blank"
+   rel="noopener noreferrer"
+   title="Open GitHub documentation for @Topic"
+   aria-label="Open GitHub documentation for @Topic">
+    Docs ↗
+</a>
+
+@code {
+    [Parameter, EditorRequired] public string Url { get; set; } = "";
+    [Parameter, EditorRequired] public string Topic { get; set; } = "";
+}

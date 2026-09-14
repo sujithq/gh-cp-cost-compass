@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net11.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>compass-bundle</ToolCommandName>
+    <PackageId>CopilotUsageSimulator.BundleTool</PackageId>
+    <Version>0.2.0</Version>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <Description>Read-only GitHub Enterprise Cloud snapshots and portable Cost Compass bundles.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.CommandLine" Version="2.0.0" />
+    <ProjectReference Include="..\CopilotUsageSimulator.Bundles\CopilotUsageSimulator.Bundles.csproj" />
+    <None Include="..\..\docs\ENTERPRISE-IMPORT.md" Pack="true" PackagePath="README.md" />
+  </ItemGroup>
+
+</Project>

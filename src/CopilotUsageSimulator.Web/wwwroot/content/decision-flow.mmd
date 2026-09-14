@@ -1,0 +1,91 @@
+flowchart TD
+    PREREQS["Supply priced workload and billing context<br/>Check access/runtime separately or explicitly exclude them"]
+    START(["Request X incremental AI credits<br/>X is demand, not committed consumption"])
+    FEATURE{"Does the feature consume AI credits?"}
+    FREEFEATURE["No AI-credit charge<br/>Separate feature quotas and access rules still apply"]
+    PLAN{"Billing family of the attributed payer?"}
+
+    PREREQS --> START
+    START --> FEATURE
+    FEATURE -- "No" --> FREEFEATURE
+    FEATURE -- "Yes" --> PLAN
+
+    PLAN -- "Existing annual Pro or Pro+ legacy cohort" --> LEGACY["Use premium requests and model multipliers<br/>AI-credit simulation is not applicable"]
+    LEGACY --> LEGACYEND["At that legacy annual term end: automatic downgrade to Free<br/>unless changed to a monthly UBB plan beforehand"]
+
+    PLAN -- "Individual UBB" --> INDPLAN{"Current monthly allowance<br/>Base + variable flex; checked 2026-09-12"}
+    INDPLAN -- "Free or Student" --> INDCUSTOM["Enter account allowance<br/>GitHub does not publish a numeric preset"]
+    INDPLAN -- "Pro total: 1,500<br/>1,000 base + 500 flex" --> INCCHECK
+    INDPLAN -- "Pro+ total: 7,000<br/>3,900 base + 3,100 flex" --> INCCHECK
+    INDPLAN -- "Max total: 20,000<br/>10,000 base + 10,000 flex" --> INCCHECK
+    INDCUSTOM --> INCCHECK{"X within remaining included credits?<br/>Remaining = max of 0 and allowance minus consumed"}
+    INCCHECK -- "Yes" --> INDINCLUDED["AI-credit funding permitted<br/>Project X included credits"]
+    INCCHECK -- "No" --> INDCHOICE{"Next action"}
+    INDCHOICE -- "Upgrade" --> INDUPGRADE["Refresh allowance after an eligible upgrade<br/>Keep prior usage; charge plan-price difference"]
+    INDUPGRADE --> INCCHECK
+    INDCHOICE -- "Additional usage" --> INDELIGIBLE{"Additional usage authorized for this account?"}
+    INDELIGIBLE -- "No" --> BLOCKIND["AI-credit funding blocked<br/>Resolve the blocking authorization or hard budget;<br/>pay outstanding usage if required, or wait for reset"]
+    INDELIGIBLE -- "Yes" --> INDPROJECT["Project included credits and excess<br/>Excess USD = metered credits times 0.01"]
+    INDPROJECT --> INDBUDGET{"Does any applicable hard budget lack headroom<br/>for the complete proposed excess charge?"}
+    INDBUDGET -- "Yes" --> BLOCKIND
+    INDBUDGET -- "No" --> INDALERTCHECK{"Any applicable alert-only budget?"}
+    INDALERTCHECK -- "Yes" --> INDALERT["AI-credit funding permitted for projected split<br/>Alert-only budgets add no stop;<br/>other hard budgets and account limits still apply"]
+    INDALERTCHECK -- "No" --> INDHARDCHECK{"Any applicable hard budget?"}
+    INDHARDCHECK -- "Yes; all cover charge" --> INDPAID["AI-credit funding permitted for projected split<br/>Other account, payment, and service limits still apply"]
+    INDHARDCHECK -- "No configured budget" --> INDNOBUDGET["AI-credit funding permitted for projected split<br/>No cap from configured spending budgets;<br/>other account, payment, and service limits still apply"]
+    INDCHOICE -- "Wait" --> BLOCKIND
+
+    PLAN -- "Business or Enterprise UBB" --> ATTRIBUTION["Resolve billed identity, licensing source, and cost center<br/>Direct user > enterprise team > licensing organization"]
+    ATTRIBUTION --> ULB{"Effective ULB exists?<br/>Individual > cost center > universal"}
+    ULB -- "Yes" --> ULBCHECK{"Does X exceed ULB headroom?<br/>Headroom = limit - consumed"}
+    ULB -- "No" --> CCPOOL{"Cost center included-usage control applies?"}
+    ULBCHECK -- "Yes" --> BLOCKULB["AI-credit funding blocked at ULB<br/>Pool and spending budgets cannot extend it"]
+    ULBCHECK -- "No" --> CCPOOL
+
+    CCPOOL -- "Yes" --> CCHEADROOM["Included headroom = minimum of<br/>non-negative pool and cost-center cap remainders"]
+    CCPOOL -- "No" --> POOLHEADROOM["Included headroom = non-negative shared pool remainder"]
+    CCHEADROOM --> CCCOVER{"Does included headroom cover X?"}
+    POOLHEADROOM --> POOLCOVER{"Does pool headroom cover X?"}
+    CCCOVER -- "Yes" --> POOL["Project X included credits<br/>No paid authorization needed"]
+    CCCOVER -- "No + X exceeds cost-center headroom + control blocks" --> BLOCKCCPOOL["AI-credit funding blocked<br/>at this cost center's included cap"]
+    CCCOVER -- "No + otherwise" --> POOLSHORT["Project included = minimum of X and included headroom<br/>Metered remainder = X - included"]
+    POOLCOVER -- "Yes" --> POOL
+    POOLCOVER -- "No" --> POOLSHORT
+    POOLSHORT --> PAIDPOLICY{"AI credit paid usage policy enabled?"}
+    POOL --> FUNDING["AI-credit funding permitted<br/>No additional AI-credit charge"]
+
+    PAIDPOLICY -- "Unknown" --> UNKNOWN["Indeterminate<br/>Do not assume authorization; accept 0 credits"]
+    PAIDPOLICY -- "No or product/SKU not authorized" --> BLOCKPOOL["Reject projection; accept 0 credits<br/>Balances remain unchanged"]
+    PAIDPOLICY -- "Yes; product/SKU authorized" --> SCOPE{"Any applicable cost-center budget<br/>for the resolved cost center?"}
+    SCOPE -- "Yes" --> CCBUDGET["Select applicable cost-center budgets"]
+    SCOPE -- "No" --> ORGSCOPE{"Any applicable budget<br/>for the licensing organization?"}
+    ORGSCOPE -- "Yes" --> ORGBUDGET["Select applicable organization budgets"]
+    ORGSCOPE -- "No" --> ENTBUDGET["No lower-scope spending budget selected"]
+    CCBUDGET --> ENTERPRISE{"Resolved cost center excluded<br/>from enterprise spending budgets?"}
+    ORGBUDGET --> ENTERPRISE
+    ENTBUDGET --> ENTERPRISE
+    ENTERPRISE -- "Yes" --> EXCLUDE["Keep selected budgets;<br/>omit enterprise spending budgets"]
+    ENTERPRISE -- "No" --> INCLUDE["Add all applicable enterprise spending budgets"]
+
+    EXCLUDE --> LIMIT{"Does any applicable hard budget lack headroom<br/>for the complete proposed metered charge?<br/>Headroom = limit - consumed"}
+    INCLUDE --> LIMIT
+    LIMIT -- "Yes" --> BLOCKBUDGET["Reject projection; accept 0 credits<br/>Balances remain unchanged"]
+    LIMIT -- "No" --> ALERTCHECK{"Any applicable alert-only budget?"}
+    ALERTCHECK -- "Yes" --> ALERTMETERED["AI-credit funding permitted for projected split<br/>Alert-only budgets add no stop;<br/>other hard budgets and account limits still apply"]
+    ALERTCHECK -- "No" --> HARDCHECK{"Any applicable hard budget?"}
+    HARDCHECK -- "Yes; all cover charge" --> METERED["AI-credit funding permitted for projected split<br/>Metered portion costs $0.01 per AI credit;<br/>other account limits still apply"]
+    HARDCHECK -- "No configured budget" --> NOBUDGET["AI-credit funding permitted for projected split<br/>No cap from configured spending budgets<br/>Other account, payment, and service limits still apply"]
+
+    BLOCKULB --> STILLWORKS["AI-credit budget blocks do not stop completions or next edits<br/>Separate access rules and plan quotas still apply"]
+    BLOCKCCPOOL --> STILLWORKS
+    BLOCKPOOL --> STILLWORKS
+    BLOCKBUDGET --> STILLWORKS
+
+    classDef decision fill:#fff7d6,stroke:#8a6d1d,color:#261f0a,stroke-width:2px;
+    classDef success fill:#e7f7ed,stroke:#257942,color:#12351f,stroke-width:2px;
+    classDef danger fill:#ffebe9,stroke:#cf222e,color:#4a1116,stroke-width:2px;
+    classDef paid fill:#eaf2ff,stroke:#0969da,color:#0a3069,stroke-width:2px;
+    class FEATURE,PLAN,INDPLAN,INCCHECK,INDCHOICE,INDELIGIBLE,INDBUDGET,INDALERTCHECK,INDHARDCHECK,ULB,ULBCHECK,CCPOOL,CCCOVER,POOLCOVER,PAIDPOLICY,SCOPE,ORGSCOPE,ENTERPRISE,LIMIT,ALERTCHECK,HARDCHECK,UNKNOWN decision;
+    class FREEFEATURE,INDINCLUDED,POOL,FUNDING,STILLWORKS success;
+    class BLOCKIND,BLOCKULB,BLOCKCCPOOL,BLOCKPOOL,BLOCKBUDGET danger;
+    class INDALERT,INDNOBUDGET,INDPAID,CCBUDGET,ORGBUDGET,ENTBUDGET,INCLUDE,EXCLUDE,ALERTMETERED,METERED,NOBUDGET paid;

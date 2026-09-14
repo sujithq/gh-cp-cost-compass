@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "expectedPoolEntitlementCredits": 5800,
+  "enterprisePoolConsumedCredits": 5740,
+  "enterpriseBudgetExcludedCostCenterIds": [],
+  "paidUsage": { "state": "enabled" },
+  "seats": {},
+  "includedControls": {},
+  "budgets": {}
+}

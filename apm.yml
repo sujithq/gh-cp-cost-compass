@@ -1,0 +1,14 @@
+name: hackathon2026
+version: 1.0.0
+description: APM project for hackathon2026
+author: Sujith Quintelier
+targets:
+  - copilot
+
+dependencies:
+  apm:
+    - dotnet/skills/plugins/dotnet
+    - dotnet/skills/plugins/dotnet-advanced#1b51a1ca9c335efa8f58ea9b39625bea6d71a866
+  mcp: []
+includes: auto
+scripts: {}

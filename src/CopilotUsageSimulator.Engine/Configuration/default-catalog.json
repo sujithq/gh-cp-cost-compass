@@ -1,0 +1,405 @@
+{
+  "version": "2026-09-11",
+  "usdPerCredit": 0.01,
+  "poolOverflowBehavior": "split",
+  "referenceSnapshot": {
+    "id": "github-copilot-cost-compass-2026-09-11",
+    "catalogVersion": "2026-09-11",
+    "verifiedOn": "2026-09-11",
+    "sources": [
+      { "id": "S1", "title": "Models and pricing", "url": "https://docs.github.com/en/copilot/reference/copilot-billing/models-and-pricing", "verifiedOn": "2026-09-11" },
+      { "id": "S2", "title": "Sol promotional-to-standard pricing documentation revision", "url": "https://github.com/github/docs/commit/9b446626f08f19ad2aa81538373d0d070b9a4abf", "verifiedOn": "2026-09-11", "publishedOn": "2026-09-04" },
+      { "id": "S3", "title": "Organization and enterprise billing", "url": "https://docs.github.com/en/copilot/concepts/billing-and-usage/organizations-and-enterprises/billing", "verifiedOn": "2026-09-11" },
+      { "id": "S4", "title": "Usage-based billing migration and existing-customer promotion", "url": "https://github.blog/news-insights/company-news/github-copilot-is-moving-to-usage-based-billing/", "verifiedOn": "2026-09-11", "publishedOn": "2026-04-27" },
+      { "id": "S7", "title": "Auto model selection and paid-plan discount", "url": "https://docs.github.com/en/copilot/concepts/models/auto-model-selection", "verifiedOn": "2026-09-11" },
+      { "id": "S8", "title": "Copilot with data residency", "url": "https://docs.github.com/en/enterprise-cloud@latest/admin/data-residency/github-copilot-with-data-residency", "verifiedOn": "2026-09-11" },
+      { "id": "S9", "title": "FedRAMP models", "url": "https://docs.github.com/en/copilot/concepts/enterprise/fedramp-models", "verifiedOn": "2026-09-11" },
+      { "id": "S10", "title": "Organization and enterprise budgets", "url": "https://docs.github.com/en/copilot/concepts/billing-and-usage/organizations-and-enterprises/budgets", "verifiedOn": "2026-09-11" },
+      { "id": "S13", "title": "Code review billing and limitations", "url": "https://docs.github.com/en/copilot/concepts/agents/code-review", "verifiedOn": "2026-09-11" },
+      { "id": "S14", "title": "GitHub Actions billing", "url": "https://docs.github.com/en/billing/concepts/product-billing/github-actions", "verifiedOn": "2026-09-11" },
+      { "id": "S15", "title": "GitHub Actions runner pricing", "url": "https://docs.github.com/en/billing/reference/actions-runner-pricing", "verifiedOn": "2026-09-11" },
+      { "id": "S16", "title": "GPT-6 Astra availability and eligible plans", "url": "https://github.blog/changelog/2026-09-04-gpt-6-astra-is-generally-available-in-github-copilot/", "verifiedOn": "2026-09-11", "publishedOn": "2026-09-04" },
+      { "id": "S17", "title": "Gemini 3.8 Flash availability and promotion", "url": "https://github.blog/changelog/2026-09-03-gemini-3-8-flash-is-now-available-in-github-copilot/", "verifiedOn": "2026-09-11", "publishedOn": "2026-09-03" },
+      { "id": "S18", "title": "MAI-Code-1-Flash retirement", "url": "https://github.blog/changelog/2026-09-10-mai-code-1-flash-deprecated/", "verifiedOn": "2026-09-11", "publishedOn": "2026-09-10" },
+      { "id": "S19", "title": "Managed permissions for agent operations", "url": "https://github.blog/changelog/2026-09-09-enterprise-managed-permissions-for-github-copilot-agent-operations/", "verifiedOn": "2026-09-11", "publishedOn": "2026-09-09" },
+      { "id": "S20", "title": "Announced upcoming Copilot policy and billing changes", "url": "https://github.blog/changelog/2026-08-28-upcoming-changes-to-github-copilot-policies-and-billing/", "verifiedOn": "2026-09-11", "publishedOn": "2026-08-28" },
+      { "id": "S21", "title": "Business and Enterprise sign-up rollout and future billing cohorts", "url": "https://github.blog/changelog/2026-09-03-reopening-copilot-business-and-enterprise-signups/", "verifiedOn": "2026-09-11", "publishedOn": "2026-09-03" },
+      { "id": "S22", "title": "Scheduled October 2 model retirements", "url": "https://github.blog/changelog/2026-09-03-upcoming-deprecation-of-selected-github-copilot-models/", "verifiedOn": "2026-09-11", "publishedOn": "2026-09-03" },
+      { "id": "S24", "title": "Supported models by plan, client, and Auto selection", "url": "https://docs.github.com/en/copilot/reference/ai-models/supported-models", "verifiedOn": "2026-09-11" }
+    ],
+    "assumptions": [
+      "This offline reference was verified on 2026-09-11. It is not live billing reconciliation or a guarantee of tenant access. Unchanged legacy models remain historical catalog entries, not an exhaustively reverified selectable model list.",
+      "Calendar-date source evidence maps to midnight UTC for deterministic simulation: effectiveFrom and availableFrom are inclusive; effectiveTo and retiredAt are exclusive. The sources do not establish exact provider billing cutover instants or timezones.",
+      "Availability verifiedFrom marks the beginning of positive evidence coverage, not an inferred original release date. Inherited June 1 catalog starts and historical prices remain scenario assumptions unless a dated source supports the boundary.",
+      "Availability, effective pricing, supported token components, and plan eligibility are independent. Missing eligibility metadata means unknown, not eligible. A non-exhaustive plan list verifies only its listed plans.",
+      "An unpublished cache-write rate is unsupported, not a published zero-price guarantee. Gemini 3.8 Flash has no guessed successor price after its promotional exclusive end of 2027-01-01.",
+      "Business and Enterprise standard allowances remain 1900 and 3900 credits per seat. The June-August 3000/7000 promotion applied only to qualified existing customers. This standard catalog does not infer promotional qualification; qualified historical scenarios require an explicitly qualified allowance snapshot.",
+      "Auto provides a 10% model-cost discount only on known paid plans in Chat, CLI, Copilot app, and cloud agent, never on Actions or code review. The selected realized model and supported Auto route must also be evidenced; the simulation does not predict Auto routing.",
+      "Residency and FedRAMP enforcement require region-specific model eligibility as well as conditional credit uplift. Compass does not support these restrictions or their stacking with Auto; the legacy generic multiplier is retained only for compatibility, not as a verified Compass rule.",
+      "A published model or eligible plan does not establish tenant rollout, administrator enablement, required client version, or operation permission. These remain independent scenario inputs, not fabricated passed checks.",
+      "September 28 experience changes and October billing/payment changes are announced future scenarios, not current September defaults. No future Sandbox price or universal payment-before-access gate is inferred from a plan name.",
+      "Results model incremental usage, not subscription fees, taxes, currency conversion, or an invoice. Personal-plan model eligibility does not implement personal-plan entitlement accounting.",
+      "Code review has an undisclosed selected model and variable typical costs; a selected-model token estimate is illustrative, not a fixed review price or guaranteed upper bound.",
+      "Actions is a distinct meter with GitHub-account allowances, not Copilot-plan allowances. Aggregate minutes must already be accounted billable minutes; this reference does not imply raw per-job runtime rounding or every runner/repository exception is modeled."
+    ]
+  },
+  "exampleScenario": {
+    "productId": "github-copilot",
+    "skuId": "copilot-ai-credits",
+    "preferredOperationId": "cloud-agent",
+    "preferredPlanId": "business",
+    "preferredModelId": "gpt-5.6-luna",
+    "preferredActionsRunnerId": "linux-2-core"
+  },
+  "plans": [
+    { "id": "free", "allowancePeriods": [{ "effectiveFrom": "2026-06-01T00:00:00Z", "includedCreditsPerUser": null }], "isPooled": false },
+    { "id": "student", "allowancePeriods": [{ "effectiveFrom": "2026-06-01T00:00:00Z", "includedCreditsPerUser": null }], "isPooled": false },
+    { "id": "pro", "allowancePeriods": [{ "effectiveFrom": "2026-06-01T00:00:00Z", "includedCreditsPerUser": 1500 }], "isPooled": false },
+    { "id": "pro-plus", "allowancePeriods": [{ "effectiveFrom": "2026-06-01T00:00:00Z", "includedCreditsPerUser": 7000 }], "isPooled": false },
+    { "id": "max", "allowancePeriods": [{ "effectiveFrom": "2026-06-01T00:00:00Z", "includedCreditsPerUser": 20000 }], "isPooled": false },
+    { "id": "business", "allowancePeriods": [{ "effectiveFrom": "2026-06-01T00:00:00Z", "includedCreditsPerUser": 1900 }], "isPooled": true },
+    { "id": "enterprise", "allowancePeriods": [{ "effectiveFrom": "2026-06-01T00:00:00Z", "includedCreditsPerUser": 3900 }], "isPooled": true }
+  ],
+  "operations": [
+    { "id": "code-completion", "isBilled": false, "actionsMetering": "none" },
+    { "id": "next-edit-suggestion", "isBilled": false, "actionsMetering": "none" },
+    { "id": "utility-model", "isBilled": false, "actionsMetering": "none" },
+    { "id": "chat", "isBilled": true, "actionsMetering": "none", "exampleLabel": "Chat", "exampleTask": "Explain the architecture and propose a safe implementation plan." },
+    { "id": "ide-agent", "isBilled": true, "actionsMetering": "none" },
+    { "id": "cli", "isBilled": true, "actionsMetering": "none" },
+    { "id": "copilot-app", "isBilled": true, "actionsMetering": "none" },
+    { "id": "cloud-agent", "isBilled": true, "actionsMetering": "always", "exampleLabel": "Cloud agent", "exampleTask": "Implement the requested feature, run checks, and report the result." },
+    { "id": "code-review", "isBilled": true, "actionsMetering": "privateRepositories", "exampleLabel": "Code review", "exampleTask": "Review the repository and explain the highest-risk defects." },
+    { "id": "spaces", "isBilled": true, "actionsMetering": "none" },
+    { "id": "third-party-agent", "isBilled": true, "actionsMetering": "none" }
+  ],
+  "gates": [
+    { "id": "license-seat", "sequence": 10, "passWhenUnspecified": true },
+    { "id": "policy", "sequence": 20, "passWhenUnspecified": true },
+    { "id": "content-exclusion", "sequence": 30, "passWhenUnspecified": true },
+    { "id": "public-code", "sequence": 40, "passWhenUnspecified": true },
+    { "id": "responsible-ai", "sequence": 50, "passWhenUnspecified": true },
+    { "id": "technical-limits", "sequence": 60, "passWhenUnspecified": true },
+    { "id": "network", "sequence": 70, "passWhenUnspecified": true },
+    { "id": "authentication", "sequence": 80, "passWhenUnspecified": true },
+    { "id": "rate-limit", "sequence": 90, "passWhenUnspecified": true },
+    { "id": "model-availability", "sequence": 100, "passWhenUnspecified": true },
+    {
+      "id": "cloud-agent-runtime",
+      "sequence": 110,
+      "applicableOperationIds": [ "cloud-agent" ],
+      "passWhenUnspecified": true
+    }
+  ],
+  "multipliers": [
+    {
+      "id": "auto-model-selection",
+      "factor": 0.90,
+      "applicableOperationIds": [ "chat", "cli", "copilot-app", "cloud-agent" ],
+      "applicablePlanIds": [ "pro", "pro-plus", "max", "business", "enterprise" ],
+      "isReferenceSupported": true,
+      "sourceIds": [ "S7", "S24" ]
+    },
+    { "id": "data-residency-fedramp", "factor": 1.10, "isReferenceSupported": false, "sourceIds": [ "S8", "S9" ] }
+  ],
+  "actionsRunners": [
+    { "id": "linux-1-core", "usdPerMinute": 0.002 },
+    { "id": "linux-2-core", "usdPerMinute": 0.006 },
+    { "id": "linux-arm64", "usdPerMinute": 0.005 },
+    { "id": "windows-2-core", "usdPerMinute": 0.010 },
+    { "id": "windows-arm64", "usdPerMinute": 0.010 },
+    { "id": "macos-3-4-core", "usdPerMinute": 0.062 },
+    { "id": "self-hosted", "usdPerMinute": 0.000 }
+  ],
+  "models": [
+    {
+      "id": "gpt-5-mini",
+      "pricePeriods": [{ "effectiveFrom": "2026-06-01T00:00:00Z", "tiers": [
+        { "id": "default", "inputUsdPerMillion": 0.25, "cachedInputUsdPerMillion": 0.025, "outputUsdPerMillion": 2.00 }
+      ]}]
+    },
+    {
+      "id": "gpt-5.3-codex",
+      "pricePeriods": [{ "effectiveFrom": "2026-06-01T00:00:00Z", "tiers": [
+        { "id": "default", "inputUsdPerMillion": 1.75, "cachedInputUsdPerMillion": 0.175, "outputUsdPerMillion": 14.00 }
+      ]}]
+    },
+    {
+      "id": "gpt-5.4",
+      "pricePeriods": [{ "effectiveFrom": "2026-06-01T00:00:00Z", "tiers": [
+        { "id": "default", "maximumContextTokensInclusive": 272000, "inputUsdPerMillion": 2.50, "cachedInputUsdPerMillion": 0.25, "outputUsdPerMillion": 15.00 },
+        { "id": "long-context", "minimumContextTokensExclusive": 272000, "inputUsdPerMillion": 5.00, "cachedInputUsdPerMillion": 0.50, "outputUsdPerMillion": 22.50 }
+      ]}]
+    },
+    {
+      "id": "gpt-5.4-mini",
+      "pricePeriods": [{ "effectiveFrom": "2026-06-01T00:00:00Z", "tiers": [
+        { "id": "default", "inputUsdPerMillion": 0.75, "cachedInputUsdPerMillion": 0.075, "outputUsdPerMillion": 4.50 }
+      ]}]
+    },
+    {
+      "id": "gpt-5.4-nano",
+      "pricePeriods": [{ "effectiveFrom": "2026-06-01T00:00:00Z", "tiers": [
+        { "id": "default", "inputUsdPerMillion": 0.20, "cachedInputUsdPerMillion": 0.02, "outputUsdPerMillion": 1.25 }
+      ]}]
+    },
+    {
+      "id": "gpt-5.5",
+      "pricePeriods": [{ "effectiveFrom": "2026-06-01T00:00:00Z", "tiers": [
+        { "id": "default", "maximumContextTokensInclusive": 272000, "inputUsdPerMillion": 5.00, "cachedInputUsdPerMillion": 0.50, "outputUsdPerMillion": 30.00 },
+        { "id": "long-context", "minimumContextTokensExclusive": 272000, "inputUsdPerMillion": 10.00, "cachedInputUsdPerMillion": 1.00, "outputUsdPerMillion": 45.00 }
+      ]}]
+    },
+    {
+      "id": "gpt-5.6-luna",
+      "pricePeriods": [{ "effectiveFrom": "2026-06-01T00:00:00Z", "tiers": [
+        { "id": "default", "maximumContextTokensInclusive": 200000, "inputUsdPerMillion": 0.20, "cachedInputUsdPerMillion": 0.02, "cacheWriteUsdPerMillion": 0.25, "outputUsdPerMillion": 1.20 },
+        { "id": "long-context", "minimumContextTokensExclusive": 200000, "inputUsdPerMillion": 0.40, "cachedInputUsdPerMillion": 0.04, "cacheWriteUsdPerMillion": 0.50, "outputUsdPerMillion": 1.80 }
+      ]}]
+    },
+    {
+      "id": "gpt-5.6-sol",
+      "displayName": "GPT-5.6 Sol",
+      "availability": {
+        "verifiedFrom": "2026-09-11T00:00:00Z",
+        "eligiblePlanIds": [ "pro-plus", "max", "business", "enterprise" ],
+        "eligiblePlansAreExhaustive": true,
+        "autoModelSelectionOperationIds": [ "chat", "cli" ],
+        "sourceIds": [ "S24" ],
+        "notes": "Current plan and Auto-route evidence begins at the snapshot date; historical tariff coverage does not establish historical tenant eligibility."
+      },
+      "supportedTokenComponents": [ "freshInput", "cachedInput", "cacheWrite", "output" ],
+      "sourceIds": [ "S1", "S2", "S24" ],
+      "pricePeriods": [{ "effectiveFrom": "2026-06-01T00:00:00Z", "effectiveTo": "2026-09-04T00:00:00Z", "sourceIds": [ "S2" ], "tiers": [
+        { "id": "promotional-default", "maximumContextTokensInclusive": 272000, "inputUsdPerMillion": 2.00, "cachedInputUsdPerMillion": 0.20, "cacheWriteUsdPerMillion": 2.50, "outputUsdPerMillion": 10.00 },
+        { "id": "promotional-long-context", "minimumContextTokensExclusive": 272000, "inputUsdPerMillion": 4.00, "cachedInputUsdPerMillion": 0.40, "cacheWriteUsdPerMillion": 5.00, "outputUsdPerMillion": 15.00 }
+      ]}, { "effectiveFrom": "2026-09-04T00:00:00Z", "sourceIds": [ "S1", "S2" ], "tiers": [
+        { "id": "standard-default", "maximumContextTokensInclusive": 272000, "inputUsdPerMillion": 4.00, "cachedInputUsdPerMillion": 0.40, "cacheWriteUsdPerMillion": 5.00, "outputUsdPerMillion": 20.00 },
+        { "id": "standard-long-context", "minimumContextTokensExclusive": 272000, "inputUsdPerMillion": 8.00, "cachedInputUsdPerMillion": 0.80, "cacheWriteUsdPerMillion": 10.00, "outputUsdPerMillion": 30.00 }
+      ]}]
+    },
+    {
+      "id": "gpt-6-astra",
+      "displayName": "GPT-6 Astra",
+      "availability": {
+        "availableFrom": "2026-09-04T00:00:00Z",
+        "verifiedFrom": "2026-09-04T00:00:00Z",
+        "eligiblePlanIds": [ "pro-plus", "max", "business", "enterprise" ],
+        "eligiblePlansAreExhaustive": true,
+        "sourceIds": [ "S16", "S24" ],
+        "notes": "The announcement lists Pro+, Max, Business, and Enterprise, not Pro. Gradual rollout and administrator policy are not guaranteed by plan eligibility."
+      },
+      "supportedTokenComponents": [ "freshInput", "cachedInput", "cacheWrite", "output" ],
+      "sourceIds": [ "S1", "S16", "S24" ],
+      "pricePeriods": [{ "effectiveFrom": "2026-09-04T00:00:00Z", "sourceIds": [ "S1", "S16" ], "tiers": [
+        { "id": "default", "maximumContextTokensInclusive": 272000, "inputUsdPerMillion": 10.00, "cachedInputUsdPerMillion": 1.00, "cacheWriteUsdPerMillion": 12.50, "outputUsdPerMillion": 50.00 },
+        { "id": "long-context", "minimumContextTokensExclusive": 272000, "inputUsdPerMillion": 20.00, "cachedInputUsdPerMillion": 2.00, "cacheWriteUsdPerMillion": 25.00, "outputUsdPerMillion": 75.00 }
+      ]}]
+    },
+    {
+      "id": "gpt-5.6-terra",
+      "pricePeriods": [{ "effectiveFrom": "2026-06-01T00:00:00Z", "tiers": [
+        { "id": "default", "maximumContextTokensInclusive": 272000, "inputUsdPerMillion": 2.00, "cachedInputUsdPerMillion": 0.20, "cacheWriteUsdPerMillion": 2.50, "outputUsdPerMillion": 12.00 },
+        { "id": "long-context", "minimumContextTokensExclusive": 272000, "inputUsdPerMillion": 4.00, "cachedInputUsdPerMillion": 0.40, "cacheWriteUsdPerMillion": 5.00, "outputUsdPerMillion": 18.00 }
+      ]}]
+    },
+    {
+      "id": "claude-haiku-4.5",
+      "pricePeriods": [{ "effectiveFrom": "2026-06-01T00:00:00Z", "tiers": [
+        { "id": "default", "inputUsdPerMillion": 1.00, "cachedInputUsdPerMillion": 0.10, "cacheWriteUsdPerMillion": 1.25, "outputUsdPerMillion": 5.00 }
+      ]}]
+    },
+    {
+      "id": "claude-sonnet-4",
+      "pricePeriods": [{ "effectiveFrom": "2026-06-01T00:00:00Z", "tiers": [
+        { "id": "default", "inputUsdPerMillion": 3.00, "cachedInputUsdPerMillion": 0.30, "cacheWriteUsdPerMillion": 3.75, "outputUsdPerMillion": 15.00 }
+      ]}]
+    },
+    {
+      "id": "claude-sonnet-4.5",
+      "pricePeriods": [{ "effectiveFrom": "2026-06-01T00:00:00Z", "tiers": [
+        { "id": "default", "inputUsdPerMillion": 3.00, "cachedInputUsdPerMillion": 0.30, "cacheWriteUsdPerMillion": 3.75, "outputUsdPerMillion": 15.00 }
+      ]}]
+    },
+    {
+      "id": "claude-sonnet-4.6",
+      "pricePeriods": [{ "effectiveFrom": "2026-06-01T00:00:00Z", "tiers": [
+        { "id": "default", "inputUsdPerMillion": 3.00, "cachedInputUsdPerMillion": 0.30, "cacheWriteUsdPerMillion": 3.75, "outputUsdPerMillion": 15.00 }
+      ]}]
+    },
+    {
+      "id": "claude-sonnet-5",
+      "pricePeriods": [{ "effectiveFrom": "2026-06-01T00:00:00Z", "tiers": [
+        { "id": "default", "inputUsdPerMillion": 2.00, "cachedInputUsdPerMillion": 0.20, "cacheWriteUsdPerMillion": 2.50, "outputUsdPerMillion": 10.00 }
+      ]}]
+    },
+    {
+      "id": "claude-opus-4.5",
+      "pricePeriods": [{ "effectiveFrom": "2026-06-01T00:00:00Z", "tiers": [
+        { "id": "default", "inputUsdPerMillion": 5.00, "cachedInputUsdPerMillion": 0.50, "cacheWriteUsdPerMillion": 6.25, "outputUsdPerMillion": 25.00 }
+      ]}]
+    },
+    {
+      "id": "claude-opus-4.6",
+      "pricePeriods": [{ "effectiveFrom": "2026-06-01T00:00:00Z", "tiers": [
+        { "id": "default", "inputUsdPerMillion": 5.00, "cachedInputUsdPerMillion": 0.50, "cacheWriteUsdPerMillion": 6.25, "outputUsdPerMillion": 25.00 }
+      ]}]
+    },
+    {
+      "id": "claude-opus-4.7",
+      "availability": {
+        "verifiedFrom": "2026-09-03T00:00:00Z",
+        "retiredAt": "2026-10-02T00:00:00Z",
+        "sourceIds": [ "S22" ],
+        "notes": "Scheduled retirement, not an early removal. Plan eligibility was not refreshed for this historical catalog entry."
+      },
+      "pricePeriods": [{ "effectiveFrom": "2026-06-01T00:00:00Z", "tiers": [
+        { "id": "default", "inputUsdPerMillion": 5.00, "cachedInputUsdPerMillion": 0.50, "cacheWriteUsdPerMillion": 6.25, "outputUsdPerMillion": 25.00 }
+      ]}]
+    },
+    {
+      "id": "claude-opus-4.8",
+      "pricePeriods": [{ "effectiveFrom": "2026-06-01T00:00:00Z", "tiers": [
+        { "id": "default", "inputUsdPerMillion": 5.00, "cachedInputUsdPerMillion": 0.50, "cacheWriteUsdPerMillion": 6.25, "outputUsdPerMillion": 25.00 }
+      ]}]
+    },
+    {
+      "id": "claude-opus-5",
+      "pricePeriods": [{ "effectiveFrom": "2026-06-01T00:00:00Z", "tiers": [
+        { "id": "default", "inputUsdPerMillion": 5.00, "cachedInputUsdPerMillion": 0.50, "cacheWriteUsdPerMillion": 6.25, "outputUsdPerMillion": 25.00 }
+      ]}]
+    },
+    {
+      "id": "claude-opus-4.8-fast",
+      "pricePeriods": [{ "effectiveFrom": "2026-06-01T00:00:00Z", "tiers": [
+        { "id": "default", "inputUsdPerMillion": 10.00, "cachedInputUsdPerMillion": 1.00, "cacheWriteUsdPerMillion": 12.50, "outputUsdPerMillion": 50.00 }
+      ]}]
+    },
+    {
+      "id": "claude-fable-5",
+      "pricePeriods": [{ "effectiveFrom": "2026-06-01T00:00:00Z", "tiers": [
+        { "id": "default", "inputUsdPerMillion": 10.00, "cachedInputUsdPerMillion": 1.00, "cacheWriteUsdPerMillion": 12.50, "outputUsdPerMillion": 50.00 }
+      ]}]
+    },
+    {
+      "id": "gemini-3.1-pro-preview",
+      "pricePeriods": [{ "effectiveFrom": "2026-06-01T00:00:00Z", "tiers": [
+        { "id": "default", "maximumContextTokensInclusive": 200000, "inputUsdPerMillion": 2.00, "cachedInputUsdPerMillion": 0.20, "outputUsdPerMillion": 12.00 },
+        { "id": "long-context", "minimumContextTokensExclusive": 200000, "inputUsdPerMillion": 4.00, "cachedInputUsdPerMillion": 0.40, "outputUsdPerMillion": 18.00 }
+      ]}]
+    },
+    {
+      "id": "gemini-3.5-flash",
+      "availability": {
+        "verifiedFrom": "2026-09-03T00:00:00Z",
+        "retiredAt": "2026-10-02T00:00:00Z",
+        "sourceIds": [ "S22" ],
+        "notes": "Scheduled retirement, independent of pricing and unverified plan eligibility."
+      },
+      "pricePeriods": [{ "effectiveFrom": "2026-06-01T00:00:00Z", "tiers": [
+        { "id": "default", "inputUsdPerMillion": 1.50, "cachedInputUsdPerMillion": 0.15, "outputUsdPerMillion": 9.00 }
+      ]}]
+    },
+    {
+      "id": "gemini-3.6-flash",
+      "availability": {
+        "verifiedFrom": "2026-09-03T00:00:00Z",
+        "retiredAt": "2026-10-02T00:00:00Z",
+        "sourceIds": [ "S22" ],
+        "notes": "The scheduled retirement precedes the published promotional price expiry; the two boundaries are independent."
+      },
+      "pricePeriods": [{ "effectiveFrom": "2026-06-01T00:00:00Z", "effectiveTo": "2027-01-01T00:00:00Z", "tiers": [
+        { "id": "promotional", "inputUsdPerMillion": 0.75, "cachedInputUsdPerMillion": 0.075, "outputUsdPerMillion": 3.75 }
+      ]}]
+    },
+    {
+      "id": "gemini-3.7-flash",
+      "pricePeriods": [{ "effectiveFrom": "2026-06-01T00:00:00Z", "effectiveTo": "2027-01-01T00:00:00Z", "tiers": [
+        { "id": "promotional", "inputUsdPerMillion": 0.75, "cachedInputUsdPerMillion": 0.075, "outputUsdPerMillion": 3.75 }
+      ]}]
+    },
+    {
+      "id": "gemini-3.8-flash",
+      "displayName": "Gemini 3.8 Flash",
+      "availability": {
+        "availableFrom": "2026-09-03T00:00:00Z",
+        "verifiedFrom": "2026-09-03T00:00:00Z",
+        "eligiblePlanIds": [ "pro", "pro-plus", "max", "business", "enterprise" ],
+        "eligiblePlansAreExhaustive": true,
+        "sourceIds": [ "S17", "S24" ],
+        "notes": "Gradual rollout and administrator model policy remain independent. No cache-write price or post-promotion successor price is published."
+      },
+      "supportedTokenComponents": [ "freshInput", "cachedInput", "output" ],
+      "sourceIds": [ "S1", "S17", "S24" ],
+      "pricePeriods": [{ "effectiveFrom": "2026-09-03T00:00:00Z", "effectiveTo": "2027-01-01T00:00:00Z", "sourceIds": [ "S1", "S17" ], "tiers": [
+        { "id": "promotional", "inputUsdPerMillion": 0.75, "cachedInputUsdPerMillion": 0.075, "outputUsdPerMillion": 3.75 }
+      ]}]
+    },
+    {
+      "id": "grok-4.5",
+      "pricePeriods": [{ "effectiveFrom": "2026-06-01T00:00:00Z", "tiers": [
+        { "id": "default", "maximumContextTokensInclusive": 200000, "inputUsdPerMillion": 2.00, "cachedInputUsdPerMillion": 0.50, "outputUsdPerMillion": 6.00 },
+        { "id": "long-context", "minimumContextTokensExclusive": 200000, "inputUsdPerMillion": 4.00, "cachedInputUsdPerMillion": 1.00, "outputUsdPerMillion": 12.00 }
+      ]}]
+    },
+    {
+      "id": "grok-4.6",
+      "pricePeriods": [{ "effectiveFrom": "2026-06-01T00:00:00Z", "tiers": [
+        { "id": "default", "maximumContextTokensInclusive": 200000, "inputUsdPerMillion": 2.00, "cachedInputUsdPerMillion": 0.50, "outputUsdPerMillion": 6.00 },
+        { "id": "long-context", "minimumContextTokensExclusive": 200000, "inputUsdPerMillion": 4.00, "cachedInputUsdPerMillion": 1.00, "outputUsdPerMillion": 12.00 }
+      ]}]
+    },
+    {
+      "id": "mai-code-1-flash",
+      "availability": {
+        "retiredAt": "2026-09-10T00:00:00Z",
+        "sourceIds": [ "S18" ],
+        "notes": "Retained for historical pricing only. The retirement announcement recommends MAI-Code-1.1-Flash."
+      },
+      "pricePeriods": [{ "effectiveFrom": "2026-06-01T00:00:00Z", "tiers": [
+        { "id": "default", "inputUsdPerMillion": 0.75, "cachedInputUsdPerMillion": 0.075, "outputUsdPerMillion": 4.50 }
+      ]}]
+    },
+    {
+      "id": "mai-code-1.1-flash",
+      "displayName": "MAI-Code-1.1-Flash",
+      "availability": {
+        "verifiedFrom": "2026-09-11T00:00:00Z",
+        "eligiblePlanIds": [ "pro", "pro-plus", "max", "business", "enterprise" ],
+        "eligiblePlansAreExhaustive": true,
+        "autoModelSelectionOperationIds": [ "chat", "cli", "copilot-app", "cloud-agent" ],
+        "sourceIds": [ "S18", "S24" ],
+        "notes": "Current eligibility is verified separately from the preserved historical tariff. No cache-write price is published."
+      },
+      "supportedTokenComponents": [ "freshInput", "cachedInput", "output" ],
+      "sourceIds": [ "S1", "S18", "S24" ],
+      "pricePeriods": [{ "effectiveFrom": "2026-06-01T00:00:00Z", "sourceIds": [ "S1" ], "tiers": [
+        { "id": "default", "inputUsdPerMillion": 0.20, "cachedInputUsdPerMillion": 0.02, "outputUsdPerMillion": 1.20 }
+      ]}]
+    },
+    {
+      "id": "kimi-k2.7-code",
+      "availability": {
+        "verifiedFrom": "2026-09-03T00:00:00Z",
+        "retiredAt": "2026-10-02T00:00:00Z",
+        "sourceIds": [ "S22" ],
+        "notes": "Scheduled retirement, independent of pricing and unverified plan eligibility."
+      },
+      "pricePeriods": [{ "effectiveFrom": "2026-06-01T00:00:00Z", "tiers": [
+        { "id": "default", "inputUsdPerMillion": 0.95, "cachedInputUsdPerMillion": 0.19, "outputUsdPerMillion": 4.00 }
+      ]}]
+    },
+    {
+      "id": "kimi-k3",
+      "pricePeriods": [{ "effectiveFrom": "2026-06-01T00:00:00Z", "tiers": [
+        { "id": "default", "inputUsdPerMillion": 3.00, "cachedInputUsdPerMillion": 0.30, "outputUsdPerMillion": 15.00 }
+      ]}]
+    },
+    {
+      "id": "raptor-mini",
+      "pricePeriods": [{ "effectiveFrom": "2026-06-01T00:00:00Z", "tiers": [
+        { "id": "default", "inputUsdPerMillion": 0.25, "cachedInputUsdPerMillion": 0.025, "outputUsdPerMillion": 2.00 }
+      ]}]
+    }
+  ]
+}

@@ -1,0 +1,262 @@
+@page "/"
+@page "/compass"
+@layout CompassLayout
+@inject CompassPageModel Model
+@inject IJSRuntime JS
+
+<PageTitle>GitHub Copilot Cost Compass</PageTitle>
+
+<header class="cp-header">
+    <div class="cp-brand">
+        <span class="cp-brand-mark"><CompassIcon Name="compass" Size="32" /></span>
+        <div>
+            <div class="cp-title-row">
+                <h1>GitHub Copilot Cost Compass</h1>
+                <span class="cp-badge cp-badge-accent">BETA</span>
+            </div>
+            <p class="cp-subtitle">Configure. Simulate. Explain. Resolve.</p>
+        </div>
+    </div>
+    <div class="cp-header-actions">
+        <button class="cp-button cp-button-icon" title="@($"Switch to {(_theme == "dark" ? "light" : "dark")} theme")"
+                aria-label="@($"Switch to {(_theme == "dark" ? "light" : "dark")} theme")" @onclick="ToggleThemeAsync">
+            <CompassIcon Name="sun" />
+        </button>
+        <button id="cc-reset" class="cp-button" @onclick="Reset"><CompassIcon Name="reset" Size="17" /> Reset</button>
+        <button id="cc-save" class="cp-button" disabled="@(!Model.CanSimulate)" @onclick="Model.SaveAsync">
+            <CompassIcon Name="save" Size="17" /> Save scenario
+        </button>
+        <button id="cc-simulate" class="cp-button cp-button-primary" disabled="@(!Model.CanSimulate)" @onclick="Model.Simulate">
+            <CompassIcon Name="play" Size="17" /> Simulate
+        </button>
+    </div>
+</header>
+
+<div class="cp-context-strip">
+    <span class="cp-kicker">Microsoft Hackathon 2026</span>
+    <span><CompassIcon Name="shield" Size="14" /> Offline, immutable previews</span>
+    <span>Evidence verified: @Model.ReferenceVerifiedLabel</span>
+    <nav aria-label="Compass navigation">
+        <a href="#cc-decision-flow" @onclick="ShowDecisionFlow" @onclick:preventDefault="true">Decision flow</a>
+        <a href="#cc-evidence">Sources &amp; scope</a>
+        <a role="link" aria-disabled="true" title="Legacy page navigation is disabled">Advanced simulator</a>
+        <a role="link" aria-disabled="true" title="Legacy page navigation is disabled">User guide</a>
+    </nav>
+</div>
+
+@if (Model.Error is not null)
+{
+    <div class="cp-message cp-message-error" role="alert">
+        <CompassIcon Name="info" /><span><strong>Could not complete that action.</strong> @Model.Error</span>
+    </div>
+}
+@if (Model.FieldErrors.Count > 0)
+{
+    <div class="cp-message cp-message-error" role="alert">
+        <CompassIcon Name="info" /><span><strong>Check your inputs.</strong> Correct the highlighted values. The previous verdict is no longer current.</span>
+    </div>
+}
+@if (Model.Notice is not null)
+{
+    <div class="cp-message" role="status"><CompassIcon Name="info" /><span>@Model.Notice</span></div>
+}
+
+<details id="cc-transfer" class="cp-transfer">
+    <summary>Scenario files &amp; portable evidence</summary>
+    <div class="cp-transfer-content">
+        <p class="cp-help">A Compass v1 bundle includes the current form values, complete scenario, matching catalog, source metadata, and a SHA-256 catalog fingerprint. It does not include a live account or credentials.</p>
+        <div class="cp-transfer-actions">
+            <button class="cp-button cp-button-small" id="cc-load" @onclick="Model.LoadAsync">Load browser save</button>
+            <button class="cp-button cp-button-small" id="cc-export" disabled="@(!Model.CanSimulate)" @onclick="Model.ExportAsync">Export bundle</button>
+            <button class="cp-button cp-button-small" id="cc-inspect-bundle" disabled="@(!Model.CanSimulate)" @onclick="InspectBundle">Inspect current bundle</button>
+        </div>
+        <div class="cp-file-input">
+            <label for="cc-import-file">Import a bundle or legacy scenario (JSON, up to 2 MB)</label>
+            <InputFile id="cc-import-file" OnChange="ImportFileAsync" accept=".json,application/json" />
+            <small>Legacy scenario-only files use the active catalog with an explicit warning. Invalid files preserve the working scenario.</small>
+        </div>
+        <details id="cc-bundle-editor">
+            <summary>Complete bundle editor / paste JSON</summary>
+            <div class="cp-field">
+                <label for="cc-bundle-text">Scenario and reference JSON</label>
+                <textarea id="cc-bundle-text" class="cp-json" spellcheck="false" @bind="_bundleText" @bind:event="oninput"></textarea>
+                <small>Edits here are staged until applied. If you intentionally change catalog evidence, generate a new matching bundle rather than bypassing its fingerprint.</small>
+            </div>
+            <button id="cc-import-text" class="cp-button cp-button-small" disabled="@(string.IsNullOrWhiteSpace(_bundleText))" @onclick="ImportText">Apply JSON locally</button>
+        </details>
+    </div>
+</details>
+
+<main class="cp-workspace">
+    <section class="cp-panel cp-presets-panel" aria-labelledby="cc-presets-title">
+        <div class="cp-panel-heading">
+            <span class="cp-step">1</span>
+            <div><h2 id="cc-presets-title">Preset scenarios</h2><small>Start with a concrete workload.</small></div>
+        </div>
+        <div class="cp-presets">
+            @foreach (var preset in CompassPresetFactory.Presets)
+            {
+                <button class="cp-preset" data-preset="@preset.OperationId"
+                        aria-pressed="@(Model.SelectedPreset == preset.OperationId ? "true" : "false")"
+                        @onclick="@(() => Model.SelectPreset(preset.OperationId))">
+                    <span class="cp-preset-icon"><CompassIcon Name="@preset.Icon" Size="24" /></span>
+                    <span class="cp-preset-copy">
+                        <strong>@preset.Title</strong>
+                        <small>@preset.Description</small>
+                        <span class="cp-badge">@preset.Meter</span>
+                    </span>
+                    @if (Model.SelectedPreset == preset.OperationId)
+                    {
+                        <span class="cp-selected-icon"><CompassIcon Name="check" Size="17" /></span>
+                    }
+                </button>
+            }
+        </div>
+        <div class="cp-sidebar-sections">
+            <div class="cp-sidebar-section">
+                <p class="cp-kicker">Make the controls tangible</p>
+                <div class="cp-field">
+                    <label for="cc-problem">Explore a modeled situation</label>
+                    <select id="cc-problem" value="@Model.SelectedProblem"
+                            @onchange="@(e => Model.SelectProblem(e.Value?.ToString() ?? ""))">
+                        <option value="@CompassProblem.Standard">Standard workload</option>
+                        <option value="@CompassProblem.PaidUsageDisabled">Insufficient credits, paid disabled</option>
+                        <option value="@CompassProblem.AiBudget">AI spending budget exceeded</option>
+                        <option value="@CompassProblem.UserBudget">Individual user limit reached</option>
+                        <option value="@CompassProblem.ActionsBudget">Actions budget exceeded</option>
+                    </select>
+                </div>
+                <p class="cp-help">@Model.SourceLabel</p>
+                <span class="cp-badge @(Model.IsCustomized ? "cp-badge-accent" : "")">@(Model.IsCustomized ? "Customized locally" : "Pinned demo")</span>
+            </div>
+            <div class="cp-sidebar-section">
+                <details>
+                    <summary><CompassIcon Name="review" Size="17" /> Why no fixed review price?</summary>
+                    <div class="cp-review-note">
+                        <p>Code review chooses an undisclosed model. Published Lite and Balanced ranges are typical estimates, not guaranteed prices or maximums, and exclude Actions.</p>
+                        <p>Unlicensed reviews and limited-review fallback require different rules. They are not modeled as ordinary seat-required requests here.</p>
+                        <a href="https://docs.github.com/en/copilot/concepts/agents/code-review" target="_blank" rel="noopener noreferrer">Read the official review guidance</a>
+                    </div>
+                </details>
+                <p class="cp-help">No standalone Actions preset: Actions is a separate meter on the supported cloud-agent workload.</p>
+            </div>
+            <div class="cp-sidebar-section">
+                <div class="cp-local-note">
+                    <CompassIcon Name="shield" />
+                    <div><strong>A compass, not a control plane.</strong><p>No sign-in. No production changes. Your inputs stay in this browser.</p></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="compass-configuration" class="cp-panel" aria-labelledby="cc-configuration-title" tabindex="-1">
+        <div class="cp-panel-heading">
+            <span class="cp-step">2</span>
+            <div><h2 id="cc-configuration-title">Configure environment</h2><small>Explicit inputs. No hidden estimates.</small></div>
+        </div>
+        <CompassConfiguration Model="Model" Changed="Refresh" InspectBlocker="InspectBlockingBundle" />
+    </section>
+
+    <section class="cp-panel cp-results-panel" aria-labelledby="cc-results-title">
+        <div class="cp-panel-heading">
+            <span class="cp-step">3</span>
+            <div><h2 id="cc-results-title">Simulation result</h2><small>Explain the decision. Compare a change.</small></div>
+        </div>
+        <CompassResults Model="Model" Changed="Refresh" ReviewBlocker="ReviewBlockingSetting" />
+    </section>
+</main>
+
+<CompassDecisionFlow />
+
+<footer class="cp-footer">
+    <span>Deterministic .NET engine. Runs entirely in Blazor WebAssembly.</span>
+    <span>Incremental usage estimate, not a GitHub invoice. USD; seat fees and taxes excluded.</span>
+</footer>
+
+@code {
+    private string _theme = "light";
+    private string _bundleText = "";
+    private string? _pendingSettingId;
+
+    protected override void OnInitialized() => Model.Initialize();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                _theme = await JS.InvokeAsync<string>("costCompass.getTheme") ?? "light";
+                StateHasChanged();
+            }
+            catch (JSException exception)
+            {
+                Model.ReportError($"Theme preference could not be read: {exception.Message}");
+                StateHasChanged();
+            }
+        }
+        if (_pendingSettingId is { } settingId)
+        {
+            _pendingSettingId = null;
+            try
+            {
+                await JS.InvokeVoidAsync("costCompass.revealSetting", settingId);
+            }
+            catch (JSException exception)
+            {
+                Model.ReportError($"The blocking setting could not be opened: {exception.Message}");
+                StateHasChanged();
+            }
+        }
+    }
+
+    private async Task ToggleThemeAsync()
+    {
+        try
+        {
+            _theme = await JS.InvokeAsync<string>("costCompass.toggleTheme");
+        }
+        catch (JSException exception)
+        {
+            Model.ReportError($"Theme could not be changed: {exception.Message}");
+        }
+    }
+
+    private void Reset()
+    {
+        _bundleText = "";
+        Model.Reset();
+    }
+
+    private void InspectBundle()
+    {
+        var bundle = Model.CreateBundle();
+        if (bundle is not null) _bundleText = bundle;
+    }
+
+    private void ReviewBlockingSetting() => _pendingSettingId = Model.BlockingSettingId;
+
+    private void InspectBlockingBundle()
+    {
+        var bundle = Model.CreateBundle();
+        if (bundle is null) return;
+        _bundleText = bundle;
+        _pendingSettingId = "cc-bundle-text";
+    }
+
+    private void ImportText() => Model.Import(_bundleText);
+    private Task ImportFileAsync(InputFileChangeEventArgs args) => Model.ImportFileAsync(args.File);
+    private async Task ShowDecisionFlow()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("decisionFlow.reveal", "cc-decision-flow");
+        }
+        catch (JSException exception)
+        {
+            Model.ReportError($"Decision flow could not be opened: {exception.Message}");
+        }
+    }
+    // Dispatching this callback re-renders the page after child-owned form edits.
+    private void Refresh() { }
+}

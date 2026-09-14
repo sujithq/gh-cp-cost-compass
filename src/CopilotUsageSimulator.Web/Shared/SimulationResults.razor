@@ -1,0 +1,222 @@
+<section class="panel results-panel">
+    <div class="panel-heading">
+        <div>
+            <p class="eyebrow">Result</p>
+            <h2>Decision and cost</h2>
+        </div>
+        <span class="step">2</span>
+    </div>
+
+    @if (State.Result is null)
+    {
+        <div class="empty-state">Configure a scenario and start a simulation.</div>
+    }
+    else
+    {
+        var result = State.Result;
+        <div class="decision-banner @StatusClass(result.Decision.ToString())">
+            <div>
+                <small>Decision</small>
+                <strong>@FormatDecision(result.Decision)</strong>
+            </div>
+            @if (result.FirstFailingGate is not null)
+            {
+                <div>
+                    <small>First failing check</small>
+                    <code>@result.FirstFailingGate</code>
+                </div>
+            }
+        </div>
+
+        @if (result.FirstFailingGate is not null)
+        {
+            var blocker = State.BlockingGuardrail;
+            <section class="blocking-explanation">
+                <div class="blocking-heading">
+                    <div>
+                        <small>Why it stopped</small>
+                        <h3>@ResolveMetadata(blocker).Label</h3>
+                    </div>
+                    <code>@result.FirstFailingGate</code>
+                </div>
+                <p>@ResolveMetadata(blocker).BlockingExplanation</p>
+                @if (blocker is not null && (blocker.Limit is not null || blocker.Requested is not null))
+                {
+                    <div class="blocking-values">
+                        <span><small>Configured limit</small><strong>@FormatNullable(blocker.Limit) @ResolveMetadata(blocker).Unit</strong></span>
+                        <span><small>Already used</small><strong>@FormatNullable(blocker.ConsumedBefore) @ResolveMetadata(blocker).Unit</strong></span>
+                        <span><small>This run needs</small><strong>@FormatNullable(blocker.Requested) @ResolveMetadata(blocker).Unit</strong></span>
+                        <span><small>@BlockingProjectionLabel(blocker)</small><strong>@FormatBlockingProjection(blocker) @ResolveMetadata(blocker).Unit</strong></span>
+                    </div>
+                }
+                <p class="blocking-message">@(blocker?.Message ?? "The simulation stopped at this check.")</p>
+                <a class="button ghost blocking-link" href="#@ResolveMetadata(blocker).SettingsAnchor">Review highlighted setting</a>
+            </section>
+        }
+
+        <div class="metrics">
+            <Metric Label="Runs completed" Value="@($"{State.CompletedRuns} / {RepeatCount}")" />
+            <Metric Label="AI credits consumed" Value="@Format(State.TotalConsumedCredits)" />
+            <Metric Label="Included credits" Value="@Format(State.TotalIncludedCredits)" />
+            <Metric Label="Metered credits" Value="@Format(State.TotalMeteredCredits)" />
+            <Metric Label="Metered cost" Value="@State.TotalMeteredUsd.ToString("C")" />
+            <Metric Label="Actions cost" Value="@State.TotalActionsUsd.ToString("C")" />
+            <Metric Label="Pool remaining" Value="@Format(result.Remaining.IncludedPoolCredits)" />
+        </div>
+
+        @if (State.Runs.Count > 1 || RepeatCount > 1)
+        {
+            <details class="run-history">
+                <summary>Run history (@State.Runs.Count evaluated)</summary>
+                <div class="run-table">
+                    <span>#</span><span>Decision</span><span>Credits</span><span>Metered</span><span>Stopped by</span>
+                    @for (var index = 0; index < State.Runs.Count; index++)
+                    {
+                        var run = State.Runs[index];
+                        <strong>@(index + 1)</strong>
+                        <span class="@StatusClass(run.Decision.ToString())">@FormatDecision(run.Decision)</span>
+                        <span>@Format(run.Allocation.TotalCredits)</span>
+                        <span>@run.Allocation.MeteredUsd.ToString("C")</span>
+                        <code>@(run.FirstFailingGate ?? "—")</code>
+                    }
+                </div>
+            </details>
+        }
+
+        <div class="summary-grid">
+            <div>
+                <small>Attributed user</small>
+                <strong>@(result.Attribution?.UserId ?? "—")</strong>
+            </div>
+            <div>
+                <small>Cost center</small>
+                <strong>@(result.Attribution?.CostCenterId ?? "Enterprise only")</strong>
+            </div>
+            <div>
+                <small>Organization</small>
+                <strong>@(result.Attribution?.LicensingOrganizationId ?? "—")</strong>
+            </div>
+            <div>
+                <small>Effective ULB</small>
+                <strong>@(result.EffectiveUlb?.Id ?? "None")</strong>
+            </div>
+        </div>
+
+        <div class="trace-heading">
+            <div>
+                <h3>Guardrail checks</h3>
+                <p>@State.VisibleGuardrails.Count() of @result.AppliedGuardrails.Count checks shown</p>
+            </div>
+            <select aria-label="Check visibility" @bind="State.VisibilityMode">
+                <option value="all">Show all</option>
+                <option value="issues">Failures and warnings</option>
+                <option value="failures">Failures only</option>
+                <option value="custom">Custom categories</option>
+            </select>
+        </div>
+
+        @if (State.VisibilityMode == "custom")
+        {
+            <div class="category-filter">
+                @foreach (var category in result.AppliedGuardrails.Select(x => x.Category).Distinct())
+                {
+                    <label>
+                        <input type="checkbox"
+                               checked="@(!State.HiddenCategories.Contains(category))"
+                               @onchange="eventArgs => SetCategory(category, eventArgs)" />
+                        @category
+                    </label>
+                }
+            </div>
+        }
+
+        <div class="check-list">
+            @{
+                var checkNumber = 0;
+            }
+            @foreach (var guardrail in State.VisibleGuardrails)
+            {
+                checkNumber++;
+                <article class="check">
+                    <span class="check-index">@checkNumber</span>
+                    <span class="status-dot @StatusClass(guardrail.Outcome.ToString())"></span>
+                    <div class="check-body">
+                        <div class="check-title">
+                            <strong>@guardrail.Id</strong>
+                            <span>@guardrail.Category</span>
+                            @if (ResolveMetadata(guardrail).IsCostRelated)
+                            {
+                                <span class="cost-related-badge">Cost related</span>
+                            }
+                            <span class="outcome @StatusClass(guardrail.Outcome.ToString())">@guardrail.Outcome</span>
+                        </div>
+                        <p>@guardrail.Message</p>
+                        @if (guardrail.Limit is not null || guardrail.Requested is not null)
+                        {
+                            <div class="check-values">
+                                <span>Limit <strong>@FormatNullable(guardrail.Limit)</strong></span>
+                                <span>Before <strong>@FormatNullable(guardrail.ConsumedBefore)</strong></span>
+                                <span>Requested <strong>@FormatNullable(guardrail.Requested)</strong></span>
+                                <span>After <strong>@FormatNullable(guardrail.RemainingAfter)</strong></span>
+                            </div>
+                        }
+                    </div>
+                </article>
+            }
+        </div>
+
+        @if (result.Explanation.Count > 0)
+        {
+            <details class="explanation">
+                <summary>Decision trace and assumptions</summary>
+                <ol>
+                    @foreach (var entry in result.Explanation)
+                    {
+                        <li><code>@entry.Code</code> @entry.Message</li>
+                    }
+                </ol>
+                @foreach (var assumption in result.Assumptions)
+                {
+                    <p class="assumption">@assumption</p>
+                }
+            </details>
+        }
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired]
+    public SimulationResultsState State { get; set; } = null!;
+
+    [Parameter]
+    public int RepeatCount { get; set; } = 1;
+
+    private static string StatusClass(string value) =>
+        value.ToLowerInvariant().Replace("stopped", "-stopped");
+
+    private static string FormatDecision(SimulationDecision decision) => decision switch
+    {
+        SimulationDecision.PartiallySimulated => "Partially simulated",
+        SimulationDecision.SoftStopped => "Soft stopped",
+        _ => decision.ToString()
+    };
+
+    private static string Format(decimal value) => value.ToString("0.####");
+
+    private static string FormatNullable(decimal? value) => value?.ToString("0.####") ?? "—";
+
+    private static string BlockingProjectionLabel(AppliedGuardrail guardrail) =>
+        guardrail.RemainingAfter < 0 ? "Shortfall" : "Projected remaining";
+
+    private static string FormatBlockingProjection(AppliedGuardrail guardrail) =>
+        guardrail.RemainingAfter is null ? "—" : Format(Math.Abs(guardrail.RemainingAfter.Value));
+
+    private GuardrailMetadata ResolveMetadata(AppliedGuardrail? guardrail) =>
+        GuardrailMetadataCatalog.Resolve(
+            guardrail?.MetadataKey,
+            guardrail?.Id ?? State.Result?.FirstFailingGate,
+            guardrail?.Category);
+
+    private void SetCategory(string category, ChangeEventArgs args) =>
+        State.SetCategoryVisibility(category, args.Value is true);
+}

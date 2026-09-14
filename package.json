@@ -1,0 +1,11 @@
+{
+  "name": "copilot-cost-compass-web-assets",
+  "private": true,
+  "scripts": {
+    "copy:mermaid": "node scripts/copy-mermaid.mjs",
+    "postinstall": "npm run copy:mermaid"
+  },
+  "devDependencies": {
+    "mermaid": "11.17.2"
+  }
+}

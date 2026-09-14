@@ -1,0 +1,40 @@
+{
+  "name": "GitHub Copilot Cost Compass",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+  "features": {
+    "ghcr.io/devcontainers/features/dotnet:2": {
+      "version": "11.0.100-preview.7.26381.103"
+    },
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "24",
+      "pnpmVersion": "none"
+    }
+  },
+  "remoteUser": "vscode",
+  "containerEnv": {
+    "DOTNET_CLI_TELEMETRY_OPTOUT": "1",
+    "ASPNETCORE_URLS": "http://0.0.0.0:5086",
+    "UseArtifactsOutput": "true",
+    "ArtifactsPath": "${containerWorkspaceFolder}/artifacts/devcontainer"
+  },
+  "mounts": [
+    "type=volume,source=cost-compass-sdk-${devcontainerId},target=${containerWorkspaceFolder}/.dotnet,volume-nocopy",
+    "type=volume,source=cost-compass-node-${devcontainerId},target=${containerWorkspaceFolder}/node_modules,volume-nocopy"
+  ],
+  "forwardPorts": [5086],
+  "portsAttributes": {
+    "5086": {
+      "label": "Cost Compass",
+      "onAutoForward": "notify"
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": ["ms-dotnettools.csdevkit"],
+      "settings": {
+        "dotnet.defaultSolution": "CopilotUsageSimulator.slnx"
+      }
+    }
+  },
+  "postCreateCommand": ["bash", ".devcontainer/post-create.sh"]
+}

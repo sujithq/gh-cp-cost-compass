@@ -1,0 +1,65 @@
+<svg class="cp-icon" width="@Size" height="@Size" viewBox="0 0 24 24" fill="none"
+     stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    @switch (Name)
+    {
+        case "compass":
+            <circle cx="12" cy="12" r="9" />
+            <path d="m16.5 7.5-3 6-6 3 3-6 6-3Z M12 1v2 M12 21v2 M1 12h2 M21 12h2" />
+            break;
+        case "chat":
+            <path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5H4l-2 2v-9.5A8.5 8.5 0 0 1 10.5 4H13a8 8 0 0 1 8 7.5Z" />
+            <path d="M7 12h.01 M12 12h.01 M17 12h.01" stroke-width="3" />
+            break;
+        case "agent":
+            <rect x="4" y="7" width="16" height="13" rx="4" />
+            <path d="M12 3v4 M9 12h.01 M15 12h.01 M9 16h6 M1 12v4 M23 12v4" />
+            break;
+        case "cli":
+            <rect x="2" y="3" width="20" height="18" rx="3" />
+            <path d="m6 8 4 4-4 4 M13 16h5" />
+            break;
+        case "review":
+            <path d="M8 3H4v4 M16 3h4v4 M20 17v4h-4 M8 21H4v-4" />
+            <path d="m7 12 3 3 7-7" />
+            break;
+        case "play":
+            <path d="m8 4 12 8-12 8V4Z" />
+            break;
+        case "reset":
+            <path d="M3 3v6h6 M3 9a9 9 0 1 1 0 6" />
+            break;
+        case "save":
+            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h12l4 4v12a2 2 0 0 1-2 2Z" />
+            <path d="M7 3v6h10V3 M7 21v-8h10v8" />
+            break;
+        case "check":
+            <path d="m5 12 4 4L19 6" />
+            break;
+        case "stop":
+            <path d="m8 3-5 5v8l5 5h8l5-5V8l-5-5H8Z M9 9l6 6 M15 9l-6 6" />
+            break;
+        case "shield":
+            <path d="M12 2 3 6v6c0 5 9 10 9 10s9-5 9-10V6l-9-4Z M8 12l3 3 5-6" />
+            break;
+        case "sun":
+            <circle cx="12" cy="12" r="4" />
+            <path d="M12 1v2 M12 21v2 M1 12h2 M21 12h2 M4 4l2 2 M18 18l2 2 M4 20l2-2 M18 6l2-2" />
+            break;
+        case "arrow":
+            <path d="M4 12h16 M14 6l6 6-6 6" />
+            break;
+        case "info":
+            <circle cx="12" cy="12" r="9" />
+            <path d="M12 11v6 M12 7h.01" />
+            break;
+        default:
+            <circle cx="12" cy="12" r="9" />
+            <path d="M12 7v5l3 2" />
+            break;
+    }
+</svg>
+
+@code {
+    [Parameter] public string Name { get; set; } = "compass";
+    [Parameter] public int Size { get; set; } = 20;
+}

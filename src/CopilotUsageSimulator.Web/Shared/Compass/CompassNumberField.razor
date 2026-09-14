@@ -1,0 +1,62 @@
+@using System.Globalization
+@using System.Numerics
+@typeparam TValue where TValue : struct, INumber<TValue>
+
+<div class="@(IsBlocking ? "cp-field cp-field-blocking" : "cp-field")">
+    <label for="@Id">@Label</label>
+    <input id="@Id" type="number" min="0" step="@Step" value="@_text"
+           aria-invalid="@(_error is not null ? "true" : "false")"
+           aria-describedby="@(IsBlocking ? $"{Id}-help {Id}-blocker" : $"{Id}-help")" @oninput="OnInput" />
+    <small id="@($"{Id}-help")" class="@(_error is null ? "" : "cp-field-error")">
+        @(_error ?? Hint)
+    </small>
+    @if (IsBlocking)
+    {
+        <span id="@($"{Id}-blocker")" class="cp-setting-blocker"><CompassIcon Name="info" Size="14" /> First blocker</span>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Id { get; set; } = "";
+    [Parameter, EditorRequired] public string Label { get; set; } = "";
+    [Parameter] public string? Hint { get; set; }
+    [Parameter] public bool IsBlocking { get; set; }
+    [Parameter] public string Step { get; set; } = "1";
+    [Parameter] public TValue Value { get; set; }
+    [Parameter] public EventCallback<TValue> ValueChanged { get; set; }
+    [Parameter] public EventCallback<string?> ErrorChanged { get; set; }
+
+    private string _text = "";
+    private string? _error;
+    private TValue _lastValue;
+    private bool _initialized;
+
+    protected override void OnParametersSet()
+    {
+        if (!_initialized || Value != _lastValue)
+        {
+            _text = Value.ToString(null, CultureInfo.InvariantCulture);
+            _lastValue = Value;
+            _initialized = true;
+            _error = null;
+        }
+    }
+
+    private async Task OnInput(ChangeEventArgs args)
+    {
+        _text = args.Value?.ToString() ?? "";
+        if (TValue.TryParse(_text, CultureInfo.InvariantCulture, out var value) &&
+            value >= TValue.Zero && (Step != "1" || TValue.IsInteger(value)))
+        {
+            _lastValue = value;
+            _error = null;
+            await ValueChanged.InvokeAsync(value);
+            await ErrorChanged.InvokeAsync(null);
+        }
+        else
+        {
+            _error = $"Enter a valid non-negative {(Step == "1" ? "whole number" : "number")} for {Label.ToLowerInvariant()}.";
+            await ErrorChanged.InvokeAsync(_error);
+        }
+    }
+}

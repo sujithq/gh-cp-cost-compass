@@ -1,0 +1,54 @@
+<section id="@Id" class="setting-card budget-card @(Highlighted ? "impacted-setting" : "")">
+    <div class="setting-header">
+        <label class="setting-toggle">
+            <input type="checkbox" checked="@Enabled" @onchange="Toggle" />
+            <span>
+                <strong>@Title</strong>
+                <small>@Help</small>
+            </span>
+        </label>
+        @if (DocsUrl is not null)
+        {
+            <DocsLink Url="@DocsUrl" Topic="@Title" />
+        }
+    </div>
+    @if (Enabled)
+    {
+        <div class="budget-fields">
+            <DecimalField Label="Limit (USD)" Value="@Limit" ValueChanged="LimitChanged" />
+            <DecimalField Label="Already spent (USD)" Value="@Consumed" ValueChanged="ConsumedChanged" />
+            <div class="field">
+                <label>Behavior</label>
+                <select value="@Enforcement" @onchange="ChangeEnforcement">
+                    <option value="@GuardrailEnforcement.HardStop">Stop usage at limit</option>
+                    <option value="@GuardrailEnforcement.AlertOnly">Alert only</option>
+                    <option value="@GuardrailEnforcement.ObserveOnly">Observe only</option>
+                </select>
+            </div>
+        </div>
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = "";
+    [Parameter, EditorRequired] public string Help { get; set; } = "";
+    [Parameter] public string? Id { get; set; }
+    [Parameter] public bool Highlighted { get; set; }
+    [Parameter] public string? DocsUrl { get; set; }
+    [Parameter] public bool Enabled { get; set; }
+    [Parameter] public EventCallback<bool> EnabledChanged { get; set; }
+    [Parameter] public decimal Limit { get; set; }
+    [Parameter] public EventCallback<decimal> LimitChanged { get; set; }
+    [Parameter] public decimal Consumed { get; set; }
+    [Parameter] public EventCallback<decimal> ConsumedChanged { get; set; }
+    [Parameter] public GuardrailEnforcement Enforcement { get; set; } = GuardrailEnforcement.HardStop;
+    [Parameter] public EventCallback<GuardrailEnforcement> EnforcementChanged { get; set; }
+
+    private Task Toggle(ChangeEventArgs args) =>
+        EnabledChanged.InvokeAsync(args.Value is true);
+
+    private Task ChangeEnforcement(ChangeEventArgs args) =>
+        Enum.TryParse<GuardrailEnforcement>(args.Value?.ToString(), out var value)
+            ? EnforcementChanged.InvokeAsync(value)
+            : Task.CompletedTask;
+}

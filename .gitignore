@@ -1,0 +1,12 @@
+.dotnet/
+.playwright-mcp/
+**/bin/
+**/obj/
+node_modules/
+TestResults/
+artifacts/
+*.nupkg
+*.snupkg
+
+# APM dependencies
+apm_modules/

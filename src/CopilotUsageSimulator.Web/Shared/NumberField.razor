@@ -1,0 +1,26 @@
+<div class="field">
+    <div class="field-label">
+        <label>@Label</label>
+        @if (DocsUrl is not null)
+        {
+            <DocsLink Url="@DocsUrl" Topic="@DocsTopic" />
+        }
+    </div>
+    <input type="number" min="0" value="@Value" @oninput="OnInput" />
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Label { get; set; } = "";
+    [Parameter] public string? DocsUrl { get; set; }
+    [Parameter] public string DocsTopic { get; set; } = "this setting";
+    [Parameter] public long Value { get; set; }
+    [Parameter] public EventCallback<long> ValueChanged { get; set; }
+
+    private async Task OnInput(ChangeEventArgs args)
+    {
+        if (long.TryParse(args.Value?.ToString(), out var value))
+        {
+            await ValueChanged.InvokeAsync(value);
+        }
+    }
+}

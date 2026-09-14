@@ -1,0 +1,80 @@
+{
+  "schema": "compass-enterprise-snapshot",
+  "schemaVersion": 1,
+  "enterprise": "example-enterprise",
+  "selectedUser": "alice",
+  "apiVersion": "2026-03-10",
+  "capturedAt": "2026-09-11T11:59:59Z",
+  "captureCompletedAt": "2026-09-11T12:00:00Z",
+  "sources": [
+    { "dataset": "seats", "endpoint": "sanitized fixture", "complete": true, "pages": 1 },
+    { "dataset": "cost-centers", "endpoint": "sanitized fixture", "complete": true, "pages": 1 },
+    { "dataset": "teams", "endpoint": "sanitized fixture", "complete": true, "pages": 1 },
+    { "dataset": "budgets", "endpoint": "sanitized fixture", "complete": true, "pages": 1 }
+  ],
+  "seats": [
+    { "userId": "101", "userLogin": "alice", "planType": "business", "organization": "engineering" },
+    { "userId": "102", "userLogin": "bob", "planType": "enterprise", "organization": "research" }
+  ],
+  "costCenters": [
+    {
+      "id": "cc-engineering",
+      "name": "Engineering",
+      "state": "active",
+      "aiCreditPoolEnabled": false,
+      "resources": [
+        { "type": "User", "name": "alice" },
+        { "type": "Organization", "name": "engineering" }
+      ]
+    },
+    {
+      "id": "cc-research",
+      "name": "Research",
+      "state": "active",
+      "aiCreditPoolEnabled": false,
+      "resources": [
+        { "type": "User", "name": "bob" },
+        { "type": "Organization", "name": "research" }
+      ]
+    }
+  ],
+  "teams": [],
+  "budgets": [
+    {
+      "id": "universal",
+      "scope": "multi_user_customer",
+      "budgetType": "BundlePricing",
+      "productSku": "ai_credits",
+      "budgetAmount": 10,
+      "consumedAmount": 888,
+      "preventFurtherUsage": true,
+      "willAlert": false
+    },
+    {
+      "id": "cc-spend",
+      "scope": "cost_center",
+      "entityName": "Engineering",
+      "budgetType": "BundlePricing",
+      "productSku": "ai_credits",
+      "budgetAmount": 1,
+      "consumedAmount": 0.8,
+      "preventFurtherUsage": true,
+      "willAlert": true
+    },
+    {
+      "id": "enterprise-spend",
+      "scope": "enterprise",
+      "budgetType": "BundlePricing",
+      "productSku": "ai_credits",
+      "budgetAmount": 500,
+      "consumedAmount": 10,
+      "preventFurtherUsage": true,
+      "willAlert": true
+    }
+  ],
+  "userBudgetStates": [
+    { "budgetId": "universal", "user": "alice", "consumedAmount": 2, "targetAmount": 10 }
+  ],
+  "effectiveUserBudget": { "budgetId": "universal", "user": "alice", "consumedAmount": 2, "targetAmount": 10 },
+  "usageReports": []
+}

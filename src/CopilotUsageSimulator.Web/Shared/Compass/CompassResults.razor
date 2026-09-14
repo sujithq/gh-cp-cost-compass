@@ -1,0 +1,325 @@
+@using System.Globalization
+
+<div class="cp-panel-body">
+    <div aria-live="polite" aria-atomic="true" data-testid="compass-verdict">
+        @if (Model.Preview is null)
+        {
+            <div class="cp-decision cp-decision-stale">
+                <span class="cp-decision-icon"><CompassIcon Name="clock" Size="28" /></span>
+                <div><h3>Needs simulation</h3><p>@(Model.CanSimulate ? "Inputs changed. Run a fresh preview." : "Correct the highlighted inputs first.")</p></div>
+            </div>
+            <p class="cp-preview-caption">The previous decision and comparisons are no longer shown as current.</p>
+        }
+        else if (Model.Preview.ErrorCode is not null)
+        {
+            <div class="cp-decision cp-decision-indeterminate">
+                <span class="cp-decision-icon"><CompassIcon Name="info" Size="28" /></span>
+                <div><h3>No supported estimate</h3><p>Missing, unpriced, or unsupported reference evidence.</p></div>
+            </div>
+            <div class="cp-blocker">
+                <div class="cp-blocker-head"><strong>Evidence boundary, not a live policy denial</strong></div>
+                <code>@Model.Preview.ErrorCode</code>
+                <p>@Model.Preview.ErrorMessage</p>
+            </div>
+        }
+        else if (Model.Preview.Result is { } result)
+        {
+            <div class="@($"cp-decision cp-decision-{result.Decision.ToString().ToLowerInvariant()}")" data-decision="@result.Decision">
+                <span class="cp-decision-icon"><CompassIcon Name="@DecisionIcon(result.Decision)" Size="28" /></span>
+                <div><h3>@DecisionLabel(result.Decision)</h3><p>@DecisionSummary(result.Decision)</p></div>
+            </div>
+            <p class="cp-preview-caption">Immutable preview. No production settings or working balances were changed.</p>
+        }
+    </div>
+
+    @if (Model.Preview is { ErrorCode: null, Result: { } evaluated } preview)
+    {
+        <div class="cp-metrics">
+            <div class="cp-metric cp-metric-primary">
+                <span>AI credits required</span><strong data-testid="required-credits">@Number(preview.RequiredAiCredits)</strong>
+                <small>Workload demand, not committed consumption</small>
+            </div>
+            <div class="cp-metric">
+                <span>Potential additional usage</span><strong data-testid="potential-usd">@Money(preview.ProposedTotalUsd)</strong>
+                <small>AI + Actions, only if every gate approves</small>
+            </div>
+        </div>
+        <table class="cp-ledger" aria-label="Required and accepted usage">
+            <tbody>
+                <tr><th scope="row">Included credits requested</th><td>@Number(preview.ProposedIncludedCredits)</td></tr>
+                <tr><th scope="row">Additional AI charge, if approved</th><td>@Money(preview.ProposedAiUsd)</td></tr>
+                <tr><th scope="row">Separate Actions charge, if approved</th><td>@Money(preview.ProposedActionsUsd)</td></tr>
+                <tr><th scope="row">Accepted AI credits in this result</th><td data-testid="accepted-credits">@Number(preview.AcceptedAiCredits)</td></tr>
+                <tr><th scope="row">Accepted additional usage (USD)</th><td>@Money(preview.AcceptedTotalUsd)</td></tr>
+                <tr><th scope="row">Pool remaining before / after</th><td>@Number(preview.InitialRemaining?.IncludedPoolCredits) / @Number(evaluated.Remaining.IncludedPoolCredits)</td></tr>
+            </tbody>
+        </table>
+        @if (preview.RequiredAiCredits is null)
+        {
+            <p class="cp-help">The pipeline stopped before pricing. Uncalculated amounts are not zero-cost estimates.</p>
+        }
+        @if (evaluated.Attribution is { } attribution)
+        {
+            <div class="cp-inline-evidence">
+                <span>Copilot payer: @attribution.LicensingOrganizationId</span>
+                <span>User: @attribution.UserId</span>
+                <span>Cost center: @(attribution.CostCenterId ?? "None")</span>
+            </div>
+        }
+        @if (evaluated.FirstFailingGate is { } gate)
+        {
+            <div class="cp-blocker" data-testid="compass-blocker">
+                <div class="cp-blocker-head"><strong>First modeled blocker</strong><span class="cp-badge">Stopped here</span></div>
+                <code>@gate</code>
+                <p>@(Model.BlockingGuardrail?.Message ?? evaluated.Trace.FirstOrDefault(entry => entry.Id == gate)?.Message)</p>
+                @if (Model.BlockingSetting is { } setting)
+                {
+                    <button id="cc-review-blocker" class="cp-button cp-button-small" title="@($"Review {setting.Label}")"
+                            aria-controls="@(setting.SectionId ?? setting.Id)" @onclick="ReviewBlocker">
+                        <CompassIcon Name="arrow" Size="16" /> Review blocking setting
+                    </button>
+                }
+                <p class="cp-help">Later checks cannot be assumed to pass. Rejected usage leaves consumption unchanged.</p>
+            </div>
+        }
+        @if (evaluated.Calls.Count > 0)
+        {
+            <details class="cp-advanced-controls">
+                <summary>Model-call cost breakdown (@evaluated.Calls.Count)</summary>
+                @foreach (var call in evaluated.Calls)
+                {
+                    <table class="cp-ledger">
+                        <caption>Call @call.CallIndex: @call.ModelId / @call.PriceTierId</caption>
+                        <tbody>
+                            <tr><th scope="row">Fresh input</th><td>@Money(call.FreshInputUsd)</td></tr>
+                            <tr><th scope="row">Cached input</th><td>@Money(call.CachedInputUsd)</td></tr>
+                            <tr><th scope="row">Cache write</th><td>@Money(call.CacheWriteUsd)</td></tr>
+                            <tr><th scope="row">Output</th><td>@Money(call.OutputUsd)</td></tr>
+                            <tr><th scope="row">Adjusted model cost</th><td>@Money(call.AdjustedUsd)</td></tr>
+                        </tbody>
+                    </table>
+                    @if (call.Pricing is { } pricing)
+                    {
+                        <p class="cp-help">
+                            Rate period: @pricing.EffectiveFrom.ToUniversalTime().ToString("dd MMM yyyy", CultureInfo.InvariantCulture)
+                            to @(pricing.EffectiveTo?.ToUniversalTime().ToString("dd MMM yyyy", CultureInfo.InvariantCulture) ?? "no documented end") (exclusive end).
+                            USD / 1M tokens: fresh @Number(pricing.InputUsdPerMillion), cached @Number(pricing.CachedInputUsdPerMillion),
+                            cache write @(pricing.CacheWriteUsdPerMillion is null ? "not published" : Number(pricing.CacheWriteUsdPerMillion)),
+                            output @Number(pricing.OutputUsdPerMillion). Rates before any eligible adjustments.
+                        </p>
+                        <div class="cp-inline-evidence">
+                            @foreach (var source in Model.ReferenceSources.Where(source => pricing.SourceIds.Contains(source.Id, StringComparer.OrdinalIgnoreCase)))
+                            {
+                                <a href="@source.Url" target="_blank" rel="noopener noreferrer">@source.Title</a>
+                            }
+                        </div>
+                    }
+                }
+                <p class="cp-help">Model usage value includes included credits. It is not all additional billed spend.</p>
+            </details>
+        }
+
+        <section class="cp-result-section">
+            <div class="cp-section-heading">
+                <h3>Resolve with a verified comparison</h3>
+                <span class="cp-badge">Local only</span>
+            </div>
+            <p class="cp-help">Try less work before more spend. Every alternative re-runs the same selected check scope.</p>
+            <button id="cc-compare" class="cp-button cp-button-wide cp-button-quiet cp-advanced-controls" @onclick="Compare">
+                Preview alternatives <CompassIcon Name="arrow" Size="16" />
+            </button>
+            @if (Model.Comparisons.Count > 0)
+            {
+                <div class="cp-comparisons cp-advanced-controls">
+                    @foreach (var comparison in Model.Comparisons)
+                    {
+                        var candidateAllowed = comparison.Candidate.ErrorCode is null &&
+                            comparison.Candidate.Result?.Decision == SimulationDecision.Allowed;
+                        <article class="cp-comparison" data-comparison="@comparison.Id" data-resolved="@(candidateAllowed ? "true" : "false")">
+                            <h4>@comparison.Title</h4>
+                            <p>@comparison.Description</p>
+                            <div class="cp-comparison-outcome">
+                                <span>@PreviewLabel(comparison.Baseline)</span>
+                                <CompassIcon Name="arrow" Size="14" />
+                                <strong>@PreviewLabel(comparison.Candidate)</strong>
+                                <span class="cp-badge">@(comparison.Resolved ? "Verified allowed" : candidateAllowed ? "Allowed alternative" : "Still limited")</span>
+                            </div>
+                            <div class="cp-comparison-cost">
+                                Potential additional usage: <strong>@Money(comparison.Baseline.ProposedTotalUsd) &rarr; @Money(comparison.Candidate.ProposedTotalUsd)</strong>
+                                <br />Change: <strong>@SignedMoney(comparison.UsdDelta)</strong>
+                            </div>
+                            @if (comparison.Candidate.Result?.FirstFailingGate is { } remainingBlocker)
+                            {
+                                <p>Remaining blocker: <code>@remainingBlocker</code></p>
+                            }
+                            @if (comparison.Candidate.ErrorMessage is { } candidateError)
+                            {
+                                <p>@candidateError</p>
+                            }
+                            <button class="cp-button cp-button-small" @onclick="@(() => Apply(comparison.Id))">Use this scenario locally</button>
+                        </article>
+                    }
+                </div>
+            }
+        </section>
+
+        <details class="cp-result-section" open>
+            <summary>Ordered decision trace (@evaluated.Trace.Count checks)</summary>
+            <p class="cp-help">Actual engine order. Excluded, not-applicable, and not-evaluated checks are not passes.</p>
+            <div class="cp-trace-scroll" tabindex="0" role="region" aria-label="Full ordered simulation trace">
+                <ol class="cp-trace">
+                    @foreach (var entry in evaluated.Trace)
+                    {
+                        var unit = GuardrailMetadataCatalog.Resolve(entry.MetadataKey, entry.Id).Unit;
+                        <li class="cp-trace-row" data-state="@entry.State">
+                            <span class="cp-trace-marker">
+                                @if (entry.State == SimulationTraceState.Passed)
+                                {
+                                    <CompassIcon Name="check" Size="13" />
+                                }
+                                else if (entry.State == SimulationTraceState.Blocked)
+                                {
+                                    <span aria-hidden="true">&times;</span>
+                                }
+                                else
+                                {
+                                    <span aria-hidden="true">&middot;</span>
+                                }
+                            </span>
+                            <div class="cp-trace-head"><strong>@entry.Label</strong><span class="cp-trace-state">@TraceLabel(entry.State)</span></div>
+                            <details>
+                                <summary>@entry.Stage &middot; <code>@entry.Id</code></summary>
+                                <p class="cp-trace-evidence">@entry.Message</p>
+                                @if (entry.EntityId is not null)
+                                {
+                                    <p class="cp-trace-evidence">Entity: <code>@entry.EntityId</code></p>
+                                }
+                                @if (entry.Limit is not null || entry.Requested is not null)
+                                {
+                                    <p class="cp-trace-evidence">
+                                        Limit: @(entry.Limit is null ? "Not set" : Number(entry.Limit)) @unit;
+                                        used before: @(entry.ConsumedBefore is null ? "Not supplied" : Number(entry.ConsumedBefore)) @unit;
+                                        requested: @(entry.Requested is null ? "Not evaluated" : Number(entry.Requested)) @unit;
+                                        returned remainder: @(entry.RemainingAfter is null ? "Not evaluated" : Number(entry.RemainingAfter)) @unit.
+                                    </p>
+                                }
+                            </details>
+                        </li>
+                    }
+                </ol>
+            </div>
+        </details>
+        @if (evaluated.Alerts.Count > 0)
+        {
+            <div class="cp-result-section"><h3>Accepted-charge alerts</h3>
+                <p class="cp-help">@evaluated.Alerts.Count threshold event(s) from this accepted preview. An alert-only budget is not a stop.</p>
+            </div>
+        }
+    }
+
+    <section class="cp-result-section cp-evidence" id="cc-evidence" aria-label="Reference evidence and supported scope">
+        <h3>Reference &amp; supported scope</h3>
+        <dl>
+            <dt>Simulation timestamp</dt><dd>@Model.Scenario.Timestamp.ToUniversalTime().ToString("dd MMM yyyy, HH:mm 'UTC'", CultureInfo.InvariantCulture)</dd>
+            <dt>Catalog</dt><dd>@Model.Configuration.Version</dd>
+            <dt>Reference snapshot</dt><dd>@(Model.Configuration.ReferenceSnapshot?.Id ?? "Unverified catalog")</dd>
+            <dt>Evidence verified</dt><dd>@Model.ReferenceVerifiedLabel</dd>
+            <dt>Reference fingerprint</dt><dd><code title="@Model.CatalogFingerprint">@Model.CatalogFingerprint[..Math.Min(16, Model.CatalogFingerprint.Length)]&hellip;</code></dd>
+        </dl>
+        @if (Model.EvidenceWarning is not null)
+        {
+            <p class="cp-blocker">@Model.EvidenceWarning</p>
+        }
+        <p>Business/Enterprise pooled seats. Standard September cohort. @Money(Model.Configuration.UsdPerCredit) per AI credit. Fractional credits retained; no undocumented billing rounding.</p>
+        <details>
+            <summary>Assumptions, boundaries &amp; official sources</summary>
+            <ul>
+                @foreach (var assumption in Model.ReferenceAssumptions)
+                {
+                    <li>@assumption</li>
+                }
+                @if (Model.Preview is { } evidencePreview)
+                {
+                    @foreach (var assumption in evidencePreview.Assumptions)
+                    {
+                        <li>@assumption</li>
+                    }
+                }
+            </ul>
+            <p>Calendar-date transitions use explicit UTC simulation boundaries, not a known live billing cutover instant. Announced September 28 / October changes are outside this preview profile.</p>
+            <div class="cp-reference-links">
+                @foreach (var source in Model.ReferenceSources)
+                {
+                    <a href="@source.Url" target="_blank" rel="noopener noreferrer">@source.Title</a>
+                }
+            </div>
+        </details>
+    </section>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public CompassPageModel Model { get; set; } = null!;
+    [Parameter] public EventCallback Changed { get; set; }
+    [Parameter] public EventCallback ReviewBlocker { get; set; }
+
+    private async Task Compare()
+    {
+        Model.Compare();
+        await Changed.InvokeAsync();
+    }
+
+    private async Task Apply(string id)
+    {
+        Model.ApplyComparison(id);
+        await Changed.InvokeAsync();
+    }
+
+    private static string Number(decimal? value) => value?.ToString("G29", CultureInfo.InvariantCulture) ?? "Not priced";
+    private static string Money(decimal? value) => value switch
+    {
+        null => "Not priced",
+        > 0 and < .0001m => "< $0.0001",
+        _ => value.Value.ToString("'$'0.0000", CultureInfo.InvariantCulture)
+    };
+    private static string SignedMoney(decimal? value) => value switch
+    {
+        null => "Not comparable",
+        > 0 and < .0001m => "+< $0.0001",
+        < 0 and > -.0001m => "-< $0.0001",
+        _ => value.Value.ToString("+'$'0.0000;-'$'0.0000;'$'0.0000", CultureInfo.InvariantCulture)
+    };
+    private static string DecisionIcon(SimulationDecision decision) => decision switch
+    {
+        SimulationDecision.Allowed => "check",
+        SimulationDecision.Blocked => "stop",
+        SimulationDecision.Waiting or SimulationDecision.SoftStopped => "clock",
+        _ => "info"
+    };
+    private static string DecisionLabel(SimulationDecision decision) => decision switch
+    {
+        SimulationDecision.PartiallySimulated => "Partially simulated",
+        SimulationDecision.SoftStopped => "Soft stopped",
+        _ => decision.ToString()
+    };
+    private string DecisionSummary(SimulationDecision decision) => decision switch
+    {
+        SimulationDecision.Allowed when Model.Form.Workload.CostChecksOnly => "Cost checks allowed; access and runtime excluded.",
+        SimulationDecision.Allowed => "This workload passes the supplied modeled checks.",
+        SimulationDecision.Blocked => "A modeled hard stop rejects this request.",
+        SimulationDecision.Waiting => "A modeled approval or dependency is pending.",
+        SimulationDecision.SoftStopped => "A modeled runtime or client limit stopped the task.",
+        SimulationDecision.PartiallySimulated => "The supplied workload is not fully specified.",
+        _ => "Required scenario evidence is unknown or ambiguous."
+    };
+    private static string PreviewLabel(SimulationPreview preview) => preview.ErrorCode is not null
+        ? "No estimate"
+        : preview.Result is { } result ? DecisionLabel(result.Decision) : "Not evaluated";
+    private static string TraceLabel(SimulationTraceState state) => state switch
+    {
+        SimulationTraceState.NotApplicable => "Not applicable",
+        SimulationTraceState.NotEvaluated => "Not evaluated",
+        SimulationTraceState.Excluded => "Excluded (cost-only)",
+        SimulationTraceState.SoftStopped => "Soft stopped",
+        _ => state.ToString()
+    };
+}

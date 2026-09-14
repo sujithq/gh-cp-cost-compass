@@ -1,0 +1,105 @@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<section id="cc-decision-flow" class="cp-flow" aria-labelledby="cc-flow-title" tabindex="-1">
+    <header class="cp-flow-header">
+        <div>
+            <p class="cp-kicker">How the result is decided</p>
+            <h2 id="cc-flow-title">AI-credit decision flow</h2>
+            <p>Follow the same sequence used by the simulation: attribution, included allocation, paid authorization, spending limits, and final acceptance.</p>
+        </div>
+        <div class="cp-flow-toolbar" role="group" aria-label="Diagram controls">
+            <button class="cp-button cp-button-icon" type="button" title="Zoom out" aria-label="Zoom out" @onclick="ZoomOut">-</button>
+            <button class="cp-button cp-button-icon" type="button" title="Fit diagram to width" aria-label="Fit diagram to width" @onclick="Fit">Fit</button>
+            <button class="cp-button cp-button-icon" type="button" title="Zoom in" aria-label="Zoom in" @onclick="ZoomIn">+</button>
+        </div>
+    </header>
+
+    <div id="decision-flow-description" class="visually-hidden">
+        <h3>Decision-flow text summary</h3>
+        <ol>
+            <li>Supply a priced workload and billing context, then evaluate access and runtime separately when in full scope.</li>
+            <li>Resolve the attributed payer, licensing organization, cost center, selected seat, and effective user-level budget.</li>
+            <li>Compare requested credits with remaining ULB, shared-pool, and applicable cost-center included-control headroom.</li>
+            <li>Project the included allocation and metered remainder without committing either amount.</li>
+            <li>For metered usage, require product and SKU authorization, then evaluate applicable cost-center or organization budgets and non-excluded enterprise budgets.</li>
+            <li>Reject when any hard budget cannot cover the complete charge; alert-only budgets do not stop usage.</li>
+            <li>Accept allocation and alerts only after every modeled AI-credit and Actions check allows the request.</li>
+        </ol>
+    </div>
+
+    <p id="decision-flow-error" class="cp-flow-error" hidden></p>
+
+    <div class="cp-flow-viewport" role="region" tabindex="0" aria-label="Scrollable decision-flow diagram">
+        <div id="decision-flow-loading" class="cp-flow-loading">Rendering decision flow...</div>
+        <div id="decision-flow-diagram" class="cp-flow-diagram" aria-live="polite"></div>
+    </div>
+</section>
+
+@code {
+    private const string DiagramId = "decision-flow-diagram";
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        try
+        {
+            await JS.InvokeVoidAsync(
+                "decisionFlow.observe",
+                DiagramId,
+                "content/decision-flow.mmd",
+                "decision-flow-loading",
+                "decision-flow-description",
+                "decision-flow-error");
+        }
+        catch (JSException exception)
+        {
+            await ShowControlError(exception.Message);
+        }
+    }
+
+    private Task ZoomOut() => InvokeControl("decisionFlow.zoom", -0.1);
+    private Task ZoomIn() => InvokeControl("decisionFlow.zoom", 0.1);
+    private Task Fit() => InvokeControl("decisionFlow.fit");
+
+    private async Task InvokeControl(string identifier, params object[] arguments)
+    {
+        try
+        {
+            await JS.InvokeVoidAsync(identifier, [DiagramId, .. arguments]);
+        }
+        catch (JSException exception)
+        {
+            await ShowControlError(exception.Message);
+        }
+    }
+
+    private async ValueTask ShowControlError(string message)
+    {
+        try
+        {
+            await JS.InvokeVoidAsync(
+                "decisionFlow.showError",
+                "decision-flow-error",
+                message,
+                "decision-flow-loading");
+        }
+        catch (JSException)
+        {
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("decisionFlow.disconnect", DiagramId);
+        }
+        catch (JSException)
+        {
+        }
+    }
+}

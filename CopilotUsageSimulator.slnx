@@ -1,0 +1,15 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/CopilotUsageSimulator.Common/CopilotUsageSimulator.Common.csproj" />
+    <Project Path="src/CopilotUsageSimulator.Engine/CopilotUsageSimulator.Engine.csproj" />
+    <Project Path="src/CopilotUsageSimulator.Bundles/CopilotUsageSimulator.Bundles.csproj" />
+    <Project Path="src/CopilotUsageSimulator.BundleTool/CopilotUsageSimulator.BundleTool.csproj" />
+    <Project Path="src/CopilotUsageSimulator.Web/CopilotUsageSimulator.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/CopilotUsageSimulator.BundleTool.Tests/CopilotUsageSimulator.BundleTool.Tests.csproj" />
+    <Project Path="tests/CopilotUsageSimulator.Common.Tests/CopilotUsageSimulator.Common.Tests.csproj" />
+    <Project Path="tests/CopilotUsageSimulator.Engine.Tests/CopilotUsageSimulator.Engine.Tests.csproj" />
+    <Project Path="tests/CopilotUsageSimulator.Web.Tests/CopilotUsageSimulator.Web.Tests.csproj" />
+  </Folder>
+</Solution>

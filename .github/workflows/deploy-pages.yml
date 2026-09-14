@@ -1,0 +1,92 @@
+name: Deploy simulator to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 11.0.100-preview.7.26381.103
+      - name: Test
+        run: dotnet test CopilotUsageSimulator.slnx --configuration Release
+      - name: Smoke test local bundle tool package
+        shell: bash
+        run: |
+          dotnet pack src/CopilotUsageSimulator.BundleTool --configuration Release --no-build --output "$RUNNER_TEMP/compass-packages"
+          dotnet tool install CopilotUsageSimulator.BundleTool --version 0.1.0 --tool-path "$RUNNER_TEMP/compass-tool" --add-source "$RUNNER_TEMP/compass-packages"
+          cd "$RUNNER_TEMP"
+          "$RUNNER_TEMP/compass-tool/compass-bundle" --help
+          "$RUNNER_TEMP/compass-tool/compass-bundle" create \
+            --snapshot "$GITHUB_WORKSPACE/examples/enterprise-import/snapshot.json" \
+            --workload "$GITHUB_WORKSPACE/examples/enterprise-import/workload.json" \
+            --overrides "$GITHUB_WORKSPACE/examples/enterprise-import/overrides.json" \
+            --output "$RUNNER_TEMP/compass-smoke.json"
+          "$RUNNER_TEMP/compass-tool/compass-bundle" validate "$RUNNER_TEMP/compass-smoke.json"
+      - name: Configure repository base path
+        id: pages-config
+        shell: bash
+        env:
+          PAGES_DOMAIN: ${{ vars.PAGES_DOMAIN }}
+        run: |
+          domain="${PAGES_DOMAIN%.}"
+          domain_pattern='^([A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$'
+
+          if [[ ${#domain} -le 253 && "$domain" =~ $domain_pattern ]]; then
+            base_path="/"
+            echo "custom_domain=$domain" >> "$GITHUB_OUTPUT"
+          else
+            base_path="/${{ github.event.repository.name }}/"
+            echo "custom_domain=" >> "$GITHUB_OUTPUT"
+            if [[ -n "$PAGES_DOMAIN" ]]; then
+              echo "::warning::Ignoring invalid PAGES_DOMAIN value and using $base_path"
+            fi
+          fi
+
+          sed -i "s|<base href=\"/\" />|<base href=\"$base_path\" />|" \
+            src/CopilotUsageSimulator.Web/wwwroot/index.html
+      - name: Publish
+        run: dotnet publish src/CopilotUsageSimulator.Web/CopilotUsageSimulator.Web.csproj --configuration Release
+      - name: Add SPA fallback
+        shell: bash
+        env:
+          PAGES_DOMAIN: ${{ steps.pages-config.outputs.custom_domain }}
+        run: |
+          cp src/CopilotUsageSimulator.Web/bin/Release/net11.0/publish/wwwroot/index.html \
+             src/CopilotUsageSimulator.Web/bin/Release/net11.0/publish/wwwroot/404.html
+          touch src/CopilotUsageSimulator.Web/bin/Release/net11.0/publish/wwwroot/.nojekyll
+          if [[ -n "$PAGES_DOMAIN" ]]; then
+            printf '%s\n' "$PAGES_DOMAIN" > \
+              src/CopilotUsageSimulator.Web/bin/Release/net11.0/publish/wwwroot/CNAME
+          fi
+      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: src/CopilotUsageSimulator.Web/bin/Release/net11.0/publish/wwwroot
+
+  deploy:
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

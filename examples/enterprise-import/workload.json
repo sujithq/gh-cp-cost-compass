@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "operationId": "chat",
+  "checkScope": "costRelatedOnly",
+  "calls": [
+    {
+      "modelId": "gpt-5.6-sol",
+      "contextTokens": 90000,
+      "freshInputTokens": 50000,
+      "cachedInputTokens": 0,
+      "cacheWriteTokens": 0,
+      "outputTokens": 40000
+    }
+  ]
+}

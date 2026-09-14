@@ -1,0 +1,426 @@
+@page "/advanced"
+@inject HomePageModel PageModel
+
+<PageTitle>Copilot usage simulator</PageTitle>
+
+<section class="hero">
+    <div>
+        <p class="eyebrow">Agent task preflight</p>
+        <h1>Will this task run—and what will it cost?</h1>
+        <p>Configure the workload and enterprise guardrails, then inspect every decision the engine makes.</p>
+    </div>
+    <div class="hero-actions">
+        <button class="button secondary" @onclick="SaveAsync">Save locally</button>
+        <button class="button secondary" @onclick="LoadAsync">Load saved</button>
+        <button class="button secondary" @onclick="ExportAsync">Export JSON</button>
+        <label class="button secondary file-button">
+            Import JSON
+            <InputFile OnChange="ImportAsync" accept=".json,application/json" />
+        </label>
+    </div>
+</section>
+
+<section class="template-strip">
+    <span>Start from:</span>
+    @foreach (var operation in ExampleOperations)
+    {
+        var operationId = operation.Id;
+        <button class="@TemplateButtonClass(operationId, ExampleScenarioVariant.Standard)"
+            aria-pressed="@PressedState(operationId, ExampleScenarioVariant.Standard)"
+            @onclick="@(() => LoadTemplate(operationId))">@operation.ExampleLabel</button>
+    }
+</section>
+
+@if (CostBlockedExamples.Count > 0)
+{
+    <section class="cost-blocked-templates" aria-label="Cost-blocked scenarios">
+        <div class="cost-blocked-heading">
+            <span>Cost-blocked scenarios</span>
+            <span class="template-cost-label">Cost related</span>
+        </div>
+        <div class="cost-blocked-grid">
+            @foreach (var example in CostBlockedExamples)
+            {
+                var operationId = example.OperationId;
+                var variant = example.Variant;
+                <button class="@TemplateButtonClass(operationId, variant, "template-cost-blocked")"
+                    aria-pressed="@PressedState(operationId, variant)"
+                        data-cost-scenario="@variant"
+                        @onclick="@(() => LoadTemplate(operationId, variant))">
+                    @example.Label
+                </button>
+            }
+        </div>
+    </section>
+}
+
+@if (PageModel.ScenarioSourceLabel is not null)
+{
+    <div class="scenario-origin" aria-live="polite">
+        <span>Scenario source</span>
+        <strong>@PageModel.ScenarioSourceLabel</strong>
+        <span class="scenario-state @(PageModel.IsCustomized ? "customized" : "template-defaults")">
+            @(PageModel.IsCustomized ? "Customized" : "Template defaults")
+        </span>
+    </div>
+}
+
+@if (!string.IsNullOrWhiteSpace(_error))
+{
+    <div class="message error"><strong>Simulation error</strong><span>@_error</span></div>
+}
+@if (!string.IsNullOrWhiteSpace(_notice))
+{
+    <div class="message success">@_notice</div>
+}
+
+<div class="workspace">
+    <section class="panel configuration-panel" @oninput="MarkCustomized" @onchange="MarkCustomized">
+        <div class="panel-heading">
+            <div>
+                <p class="eyebrow">Scenario</p>
+                <h2>Task and overrides</h2>
+            </div>
+            <span class="step">1</span>
+        </div>
+
+        <section class="setting-card scope-card">
+            <label class="setting-toggle">
+                <input type="checkbox" @bind="_form.Workload.CostChecksOnly" />
+                <span>
+                    <strong>Cost-related checks only <span class="default-badge">Default</span></strong>
+                    <small>Show and evaluate billing attribution, ULBs, included credits, paid usage, and spending budgets. Turn off to include access, policy, runtime, and approval checks.</small>
+                </span>
+            </label>
+        </section>
+
+        <div class="field full">
+            <label for="task">Task for the agent <span class="json-sync-badge">Scenario JSON</span></label>
+            <textarea id="task" rows="4" @bind="_form.Workload.Task"></textarea>
+            <small>The task is descriptive. Token and runtime values below define the estimate.</small>
+        </div>
+
+        <div class="form-grid">
+            <div class="field">
+                <div class="field-label">
+                    <label for="operation">Operation <span class="cost-related-badge">Cost related</span></label>
+                    <DocsLink Url="@GitHubDocumentationLinks.CopilotBilling" Topic="billable Copilot features" />
+                </div>
+                <select id="operation" @bind="_form.Workload.OperationId">
+                    @foreach (var operation in ActiveConfiguration.Operations)
+                    {
+                        <option value="@operation.Id">@operation.Id</option>
+                    }
+                </select>
+            </div>
+            <div class="field">
+                <div class="field-label">
+                    <label for="plan">Plan <span class="cost-related-badge">Cost related</span></label>
+                    <DocsLink Url="@GitHubDocumentationLinks.UsageBasedBilling" Topic="Copilot plan billing" />
+                </div>
+                <select id="plan" @bind="_form.Workload.PlanId">
+                    @foreach (var plan in ActiveConfiguration.Plans)
+                    {
+                        <option value="@plan.Id">@plan.Id</option>
+                    }
+                </select>
+            </div>
+            @if (OperationUsesRepositoryVisibility)
+            {
+                <div class="field">
+                    <label for="visibility">Repository <span class="cost-related-badge">Cost related</span></label>
+                    <select id="visibility" @bind="_form.Workload.RepositoryVisibility">
+                        @foreach (var value in Enum.GetValues<RepositoryVisibility>())
+                        {
+                            <option value="@value">@value</option>
+                        }
+                    </select>
+                </div>
+            }
+            @if (OperationConsumesAiCredits)
+            {
+                <div class="field">
+                    <div class="field-label">
+                        <label for="model">Model <span class="cost-related-badge">Cost related</span></label>
+                        <DocsLink Url="@GitHubDocumentationLinks.ModelsAndPricing" Topic="Copilot models and pricing" />
+                    </div>
+                    <select id="model" @bind="_form.Workload.ModelId">
+                        @foreach (var model in ActiveConfiguration.Models)
+                        {
+                            <option value="@model.Id">@model.Id</option>
+                        }
+                    </select>
+                </div>
+            }
+        </div>
+
+        <div class="operation-context">
+            <strong>@_form.Workload.OperationId</strong>
+            <span>@OperationContext</span>
+        </div>
+
+        @if (OperationConsumesAiCredits)
+        {
+            <h3 class="synced-heading">
+                Expected model call
+                <span class="json-sync-badge">Scenario JSON</span>
+                <span class="cost-related-badge">Cost related</span>
+                <DocsLink Url="@GitHubDocumentationLinks.ModelsAndPricing" Topic="token pricing" />
+            </h3>
+            <div class="form-grid compact">
+                <NumberField Label="Context tokens" DocsUrl="@GitHubDocumentationLinks.ModelsAndPricing" DocsTopic="context-tier pricing" @bind-Value="_form.Workload.ContextTokens" />
+                <NumberField Label="Fresh input" DocsUrl="@GitHubDocumentationLinks.ModelsAndPricing" DocsTopic="input-token pricing" @bind-Value="_form.Workload.FreshInputTokens" />
+                <NumberField Label="Cached input" DocsUrl="@GitHubDocumentationLinks.ModelsAndPricing" DocsTopic="cached-input pricing" @bind-Value="_form.Workload.CachedInputTokens" />
+                <NumberField Label="Cache write" DocsUrl="@GitHubDocumentationLinks.ModelsAndPricing" DocsTopic="cache-write pricing" @bind-Value="_form.Workload.CacheWriteTokens" />
+                <NumberField Label="Output tokens" DocsUrl="@GitHubDocumentationLinks.ModelsAndPricing" DocsTopic="output-token pricing" @bind-Value="_form.Workload.OutputTokens" />
+            </div>
+        }
+
+        <h3 class="synced-heading">
+            Simulation run
+            <span class="json-sync-badge">Scenario JSON</span>
+            <span class="cost-related-badge">Cost related</span>
+        </h3>
+        <div class="form-grid compact">
+            @if (OperationUsesActions)
+            {
+                <div id="actions-minutes-settings">
+                    <DecimalField Label="Actions minutes" DocsUrl="@GitHubDocumentationLinks.ActionsSpending" DocsTopic="GitHub Actions spending" @bind-Value="_form.Actions.Minutes" />
+                </div>
+            }
+            <div class="field">
+                <label>Repeat task</label>
+                <input type="number" min="1" max="1000" @bind="_form.Workload.RepeatCount" />
+                <small>Runs sequentially and carries balances forward.</small>
+            </div>
+        </div>
+
+        @if (OperationConsumesAiCredits)
+        {
+            <h3 class="synced-heading">
+                Billing and attribution
+                <span class="json-sync-badge">Scenario JSON</span>
+                <span class="cost-related-badge">Cost related</span>
+                <DocsLink Url="@GitHubDocumentationLinks.CostCenters" Topic="cost centers" />
+            </h3>
+            <div class="form-grid compact">
+                <div class="field">
+                    <div class="field-label">
+                        <label>Cost center</label>
+                        <DocsLink Url="@GitHubDocumentationLinks.CostCenters" Topic="cost centers" />
+                    </div>
+                    <input @bind="_form.Attribution.CostCenterId" />
+                </div>
+                <div class="field">
+                    <div class="field-label">
+                        <label>Licensing organization</label>
+                        <DocsLink Url="@GitHubDocumentationLinks.CostCenterAllocation" Topic="Copilot cost attribution" />
+                    </div>
+                    <input @bind="_form.Attribution.OrganizationId" />
+                </div>
+                <div id="pool-settings" class="@ImpactClass(GuardrailCategories.IncludedPool)">
+                    <DecimalField Label="Pool consumed" DocsUrl="@Metadata(GuardrailMetadataKeys.IncludedPool).DocumentationUrl" DocsTopic="pooled AI credits" @bind-Value="_form.Economic.PoolConsumed" />
+                </div>
+                <div id="paid-usage-settings" class="field @ImpactClass(GuardrailCategories.PaidUsageAuthorization)">
+                    <div class="field-label">
+                        <label>AI credits paid usage policy</label>
+                        <DocsLink Url="@GitHubDocumentationLinks.UsageBasedBilling" Topic="AI credits paid usage policy" />
+                    </div>
+                    <select @bind="_form.Economic.PaidUsage">
+                        @foreach (var value in Enum.GetValues<GuardrailValue>())
+                        {
+                            <option value="@value">@value</option>
+                        }
+                    </select>
+                </div>
+                <div class="field paid-usage-scope">
+                    <div class="field-label">
+                        <label for="paid-usage-products">Authorized product IDs <span class="json-sync-badge">Scenario JSON</span></label>
+                        <DocsLink Url="@GitHubDocumentationLinks.MeteredBudgets" Topic="product-level and SKU-level budget scopes" />
+                    </div>
+                    <input id="paid-usage-products"
+                           placeholder="Empty allows all products"
+                           @bind="_form.Economic.PaidUsageProductIds" />
+                    <small>Simulator authorization scope. Path: economicGuardrails.paidUsage.productIds</small>
+                </div>
+                <div class="field paid-usage-scope">
+                    <div class="field-label">
+                        <label for="paid-usage-skus">Authorized SKU IDs <span class="json-sync-badge">Scenario JSON</span></label>
+                        <DocsLink Url="@GitHubDocumentationLinks.MeteredBudgets" Topic="product-level and SKU-level budget scopes" />
+                    </div>
+                    <input id="paid-usage-skus"
+                           placeholder="Empty allows all SKUs"
+                           @bind="_form.Economic.PaidUsageSkuIds" />
+                    <small>Comma-separated; empty means unrestricted. Path: economicGuardrails.paidUsage.skuIds</small>
+                </div>
+            </div>
+
+        }
+
+        <EconomicGuardrailEditor Economic="_form.Economic"
+                                 Actions="_form.Actions"
+                                 Results="_results"
+                                 OperationConsumesAiCredits="OperationConsumesAiCredits"
+                                 OperationUsesActions="OperationUsesActions" />
+
+        @if (!_form.Workload.CostChecksOnly && OperationConsumesAiCredits)
+        {
+            <h3 class="synced-heading">Runtime guardrails <span class="json-sync-badge">Scenario JSON</span></h3>
+            <section id="runtime-settings" class="setting-card @ImpactClass(GuardrailCategories.Runtime)">
+                <label class="setting-toggle">
+                    <input type="checkbox" @bind="_form.Runtime.Enabled" />
+                    <span>
+                        <strong>Agent runtime limits</strong>
+                        <small>Operational limits for cumulative calls, duration, depth, and CLI credits.</small>
+                    </span>
+                </label>
+                @if (_form.Runtime.Enabled)
+                {
+                    <div class="form-grid">
+                        <div class="field">
+                            <label>Maximum model calls</label>
+                            <input type="number" min="0" @bind="_form.Runtime.MaximumModelCalls" />
+                        </div>
+                        <div class="field">
+                            <label>Model calls already used</label>
+                            <input type="number" min="0" @bind="_form.Runtime.ModelCallsConsumed" />
+                        </div>
+                        <div class="field">
+                            <label>Maximum duration (minutes)</label>
+                            <input type="number" min="0" step="0.1" @bind="_form.Runtime.MaximumDurationMinutes" />
+                        </div>
+                        <div class="field">
+                            <label>Duration already used (minutes)</label>
+                            <input type="number" min="0" step="0.1" @bind="_form.Runtime.ElapsedDurationMinutes" />
+                        </div>
+                        <div class="field">
+                            <label>Duration needed per run (minutes)</label>
+                            <input type="number" min="0" step="0.1" @bind="_form.Runtime.RequestedDurationMinutes" />
+                        </div>
+                        <div class="field">
+                            <label>Maximum subagent depth</label>
+                            <input type="number" min="0" @bind="_form.Runtime.MaximumSubagentDepth" />
+                        </div>
+                        <div class="field">
+                            <label>Requested subagent depth</label>
+                            <input type="number" min="0" @bind="_form.Runtime.RequestedSubagentDepth" />
+                        </div>
+                        <div class="field">
+                            <label>CLI session credit limit</label>
+                            <input type="number" min="0" step="0.01" @bind="_form.Runtime.CliSoftCreditLimit" />
+                        </div>
+                        <DecimalField Label="CLI credits already used" @bind-Value="_form.Runtime.CliCreditsConsumed" />
+                    </div>
+                }
+            </section>
+        }
+
+        <div class="primary-actions">
+            <button class="button primary" @onclick="ApplyAndRun">Apply overrides and simulate</button>
+            <button class="button ghost" @onclick="ApplyOverrides">Apply without running</button>
+        </div>
+        <p class="simulation-note">
+            Successful runs advance the working balances. Choose a template or load a saved scenario to reset the starting state.
+        </p>
+
+        <details id="scenario-json"
+                 class="advanced @ImpactClass(GuardrailMetadataCatalog.ScenarioJsonAnchor)"
+                 open="@IsBlockingAdvancedSetting">
+            <summary>
+                <span>Developer options: complete scenario JSON</span>
+                <small>Fields marked “Scenario JSON” synchronize with this document</small>
+            </summary>
+            <textarea class="json-editor" spellcheck="false" @bind="_scenarioJson"></textarea>
+            <div class="primary-actions">
+                <button class="button primary" @onclick="RunJson">Simulate JSON</button>
+                <button class="button ghost" @onclick="ReloadGuidedFields">Load JSON into guided fields</button>
+            </div>
+        </details>
+
+        <details class="advanced">
+            <summary>
+                <span>Developer options: pricing and policy catalog</span>
+                <small>Plans, models, prices, operations, gates, multipliers, and runners</small>
+            </summary>
+            <textarea class="json-editor catalog-editor" spellcheck="false" @bind="_catalogJson"></textarea>
+            <div class="primary-actions">
+                <button class="button primary" @onclick="ApplyCatalog">Apply catalog</button>
+                <button class="button ghost" @onclick="ResetCatalog">Reset default catalog</button>
+            </div>
+        </details>
+    </section>
+
+    <SimulationResults State="_results" RepeatCount="_form.Workload.RepeatCount" />
+</div>
+
+@code {
+    private ScenarioEditorState _form => PageModel.Form;
+    private SimulationResultsState _results => PageModel.Results;
+    private EngineConfiguration ActiveConfiguration => PageModel.ActiveConfiguration;
+    private IEnumerable<OperationDefinition> ExampleOperations => PageModel.ExampleOperations;
+    private IReadOnlyList<CostBlockedExample> CostBlockedExamples => PageModel.CostBlockedExamples;
+    private bool OperationConsumesAiCredits => PageModel.OperationConsumesAiCredits;
+    private bool OperationUsesActions => PageModel.OperationUsesActions;
+    private bool OperationUsesRepositoryVisibility => PageModel.OperationUsesRepositoryVisibility;
+    private string OperationContext => PageModel.OperationContext;
+    private string _scenarioJson
+    {
+        get => PageModel.ScenarioJsonText;
+        set => PageModel.ScenarioJsonText = value;
+    }
+    private string _catalogJson
+    {
+        get => PageModel.CatalogJson;
+        set => PageModel.CatalogJson = value;
+    }
+    private string? _error => PageModel.Error;
+    private string? _notice => PageModel.Notice;
+
+    protected override void OnInitialized() => PageModel.Initialize();
+
+    private void LoadTemplate(
+        string template,
+        ExampleScenarioVariant variant = ExampleScenarioVariant.Standard) =>
+        PageModel.LoadTemplate(template, variant);
+    private void MarkCustomized() => PageModel.MarkCustomized();
+    private string TemplateButtonClass(
+        string operationId,
+        ExampleScenarioVariant variant,
+        string baseClass = "") =>
+        PageModel.IsSelectedTemplate(operationId, variant)
+            ? $"{baseClass} selected-template".Trim()
+            : baseClass;
+    private string PressedState(string operationId, ExampleScenarioVariant variant) =>
+        PageModel.IsSelectedTemplate(operationId, variant) ? "true" : "false";
+    private void ApplyOverrides() => PageModel.ApplyOverrides();
+    private void ApplyAndRun() => PageModel.ApplyAndRun();
+    private void RunJson() => PageModel.RunJson();
+    private void ReloadGuidedFields() => PageModel.ReloadGuidedFields();
+    private Task SaveAsync() => PageModel.SaveAsync();
+    private Task LoadAsync() => PageModel.LoadAsync();
+    private Task ExportAsync() => PageModel.ExportAsync();
+    private Task ImportAsync(InputFileChangeEventArgs args) => PageModel.ImportAsync(args.File);
+    private void ApplyCatalog() => PageModel.ApplyCatalog();
+    private void ResetCatalog() => PageModel.ResetCatalog();
+
+    private bool IsBlockingCategory(string category) =>
+        string.Equals(_results.BlockingGuardrail?.Category, category, StringComparison.OrdinalIgnoreCase);
+    private string ImpactClass(string category) =>
+        _results.Result?.FirstFailingGate is null
+            ? ""
+            : category == GuardrailMetadataCatalog.ScenarioJsonAnchor
+                ? BlockingSettingsAnchor(_results.BlockingGuardrail) == GuardrailMetadataCatalog.ScenarioJsonAnchor ? "impacted-setting" : ""
+                : IsBlockingCategory(category) ? "impacted-setting" : "";
+    private bool IsBlockingAdvancedSetting =>
+        _results.Result?.FirstFailingGate is not null &&
+        BlockingSettingsAnchor(_results.BlockingGuardrail) == GuardrailMetadataCatalog.ScenarioJsonAnchor;
+    private string BlockingSettingsAnchor(AppliedGuardrail? guardrail) =>
+        ResolveMetadata(guardrail).SettingsAnchor;
+    private static GuardrailMetadata Metadata(string key) =>
+        GuardrailMetadataCatalog.Resolve(key);
+    private GuardrailMetadata ResolveMetadata(AppliedGuardrail? guardrail) =>
+        GuardrailMetadataCatalog.Resolve(
+            guardrail?.MetadataKey,
+            guardrail?.Id ?? _results.Result?.FirstFailingGate,
+            guardrail?.Category);
+}

@@ -1,0 +1,10 @@
+@page "/flow"
+@inject NavigationManager Navigation
+
+@code {
+    protected override void OnInitialized() =>
+        Navigation.NavigateTo(BuildTarget(Navigation.BaseUri), replace: true);
+
+    public static string BuildTarget(string baseUri) =>
+        new Uri(new Uri(baseUri, UriKind.Absolute), "#cc-decision-flow").AbsoluteUri;
+}

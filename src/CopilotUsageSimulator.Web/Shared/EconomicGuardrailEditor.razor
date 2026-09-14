@@ -1,0 +1,192 @@
+@if (OperationConsumesAiCredits)
+{
+    <h3 class="synced-heading">
+        Optional guardrails
+        <span class="json-sync-badge">Scenario JSON</span>
+        <span class="cost-related-badge">Cost related</span>
+    </h3>
+    <p class="section-help">ULB precedence: Individual exception → Cost center → Universal default. Only the most specific applicable ULB is enforced.</p>
+    <div class="guardrail-editor">
+        <section id="universal-ulb-settings" class="setting-card @UlbImpactClass(UserLevelBudgetKind.Universal)">
+            <div class="setting-header">
+                <label class="setting-toggle">
+                    <input type="checkbox" @bind="Economic.UseUniversalUlb" />
+                    <span>
+                        <strong>@Metadata(GuardrailMetadataKeys.UlbUniversal).Label</strong>
+                        <small>Default per-user limit for every Copilot-licensed user.</small>
+                    </span>
+                </label>
+                <DocsLink Url="@Metadata(GuardrailMetadataKeys.UlbUniversal).DocumentationUrl" Topic="universal user-level budgets" />
+            </div>
+            @if (Economic.UseUniversalUlb)
+            {
+                <div class="form-grid">
+                    <DecimalField Label="Credit limit per user" @bind-Value="Economic.UniversalUlbLimit" />
+                    <DecimalField Label="Current user credits used" @bind-Value="Economic.UniversalUlbConsumed" />
+                </div>
+            }
+        </section>
+
+        <section id="cost-center-ulb-settings" class="setting-card @UlbImpactClass(UserLevelBudgetKind.CostCenter)">
+            <div class="setting-header">
+                <label class="setting-toggle">
+                    <input type="checkbox" @bind="Economic.UseCostCenterUlb" />
+                    <span>
+                        <strong>@Metadata(GuardrailMetadataKeys.UlbCostCenter).Label</strong>
+                        <small>Per-user default for the selected cost center; overrides the universal ULB.</small>
+                    </span>
+                </label>
+                <DocsLink Url="@Metadata(GuardrailMetadataKeys.UlbCostCenter).DocumentationUrl" Topic="cost-center user-level budgets" />
+            </div>
+            @if (Economic.UseCostCenterUlb)
+            {
+                <div class="form-grid">
+                    <DecimalField Label="Credit limit per member" @bind-Value="Economic.CostCenterUlbLimit" />
+                    <DecimalField Label="Current user credits used" @bind-Value="Economic.CostCenterUlbConsumed" />
+                </div>
+            }
+        </section>
+
+        <section id="individual-ulb-settings" class="setting-card @UlbImpactClass(UserLevelBudgetKind.Individual)">
+            <div class="setting-header">
+                <label class="setting-toggle">
+                    <input type="checkbox" @bind="Economic.UseIndividualUlb" />
+                    <span>
+                        <strong>@Metadata(GuardrailMetadataKeys.UlbIndividual).Label exception</strong>
+                        <small>Specific limit for the attributed user; overrides cost-center and universal ULBs.</small>
+                    </span>
+                </label>
+                <DocsLink Url="@Metadata(GuardrailMetadataKeys.UlbIndividual).DocumentationUrl" Topic="individual user-level budgets" />
+            </div>
+            @if (Economic.UseIndividualUlb)
+            {
+                <div class="form-grid">
+                    <DecimalField Label="Credit limit" @bind-Value="Economic.UlbLimit" />
+                    <DecimalField Label="Credits already used" @bind-Value="Economic.UlbConsumed" />
+                </div>
+            }
+        </section>
+
+        <section id="included-control-settings" class="setting-card @ImpactClass(GuardrailCategories.IncludedUsageControl)">
+            <div class="setting-header">
+                <label class="setting-toggle">
+                    <input type="checkbox" @bind="Economic.UseIncludedControl" />
+                    <span>
+                        <strong>@Metadata(GuardrailMetadataKeys.IncludedUsageControl).Label</strong>
+                        <small>Limit how the attributed cost center uses included credits.</small>
+                    </span>
+                </label>
+                <DocsLink Url="@Metadata(GuardrailMetadataKeys.IncludedUsageControl).DocumentationUrl" Topic="included usage controls" />
+            </div>
+            @if (Economic.UseIncludedControl)
+            {
+                <div class="form-grid">
+                    <DecimalField Label="Credits already used" @bind-Value="Economic.IncludedControlConsumed" />
+                    <div class="field">
+                        <label>When included credits run out</label>
+                        <select @bind="Economic.IncludedOverflow">
+                            @foreach (var value in Enum.GetValues<IncludedOverflowBehavior>())
+                            {
+                                <option value="@value">@Friendly(value.ToString())</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+            }
+        </section>
+    </div>
+}
+
+@if (OperationConsumesAiCredits || OperationUsesActions)
+{
+    <h3 class="synced-heading">
+        Spending budgets
+        <span class="json-sync-badge">Scenario JSON</span>
+        <span class="cost-related-badge">Cost related</span>
+    </h3>
+    <p class="section-help">Only budget types used by this operation are shown. Disabled budgets are not evaluated.</p>
+    <div class="budget-grid">
+        @if (OperationConsumesAiCredits)
+        {
+            <BudgetCard Title="@Metadata(GuardrailMetadataKeys.MeteredBudgetCostCenter).Label"
+                        Id="cost-center-budget-settings"
+                        Highlighted="@IsBlockingGate("budget-cost-center")"
+                        DocsUrl="@Metadata(GuardrailMetadataKeys.MeteredBudgetCostCenter).DocumentationUrl"
+                        Help="Applies to metered usage attributed to this cost center."
+                        @bind-Enabled="Economic.UseCostCenterBudget"
+                        @bind-Limit="Economic.CostCenterBudgetLimit"
+                        @bind-Consumed="Economic.CostCenterBudgetConsumed"
+                        @bind-Enforcement="Economic.CostCenterBudgetEnforcement" />
+            <BudgetCard Title="@Metadata(GuardrailMetadataKeys.MeteredBudgetOrganization).Label"
+                        Id="organization-budget-settings"
+                        Highlighted="@IsBlockingGate("budget-organization")"
+                        DocsUrl="@Metadata(GuardrailMetadataKeys.MeteredBudgetOrganization).DocumentationUrl"
+                        Help="Used when organization-level metered spending is constrained."
+                        @bind-Enabled="Economic.UseOrganizationBudget"
+                        @bind-Limit="Economic.OrganizationBudgetLimit"
+                        @bind-Consumed="Economic.OrganizationBudgetConsumed"
+                        @bind-Enforcement="Economic.OrganizationBudgetEnforcement" />
+            <BudgetCard Title="@Metadata(GuardrailMetadataKeys.MeteredBudgetEnterprise).Label"
+                        Id="enterprise-budget-settings"
+                        Highlighted="@IsBlockingGate("budget-enterprise")"
+                        DocsUrl="@Metadata(GuardrailMetadataKeys.MeteredBudgetEnterprise).DocumentationUrl"
+                        Help="Applies across the enterprise unless the cost center is excluded."
+                        @bind-Enabled="Economic.UseEnterpriseBudget"
+                        @bind-Limit="Economic.EnterpriseBudgetLimit"
+                        @bind-Consumed="Economic.EnterpriseBudgetConsumed"
+                        @bind-Enforcement="Economic.EnterpriseBudgetEnforcement" />
+        }
+        @if (OperationUsesActions)
+        {
+            <BudgetCard Title="@Metadata(GuardrailMetadataKeys.ActionsBudget).Label"
+                        Id="actions-budget-settings"
+                        Highlighted="@IsBlockingCategory(GuardrailCategories.ActionsBudget)"
+                        DocsUrl="@Metadata(GuardrailMetadataKeys.ActionsBudget).DocumentationUrl"
+                        Help="Controls additional GitHub Actions runner charges."
+                        @bind-Enabled="Actions.UseBudget"
+                        @bind-Limit="Actions.BudgetLimit"
+                        @bind-Consumed="Actions.BudgetConsumed"
+                        @bind-Enforcement="Actions.BudgetEnforcement" />
+        }
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public EconomicEditorState Economic { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public ActionsEditorState Actions { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public SimulationResultsState Results { get; set; } = default!;
+
+    [Parameter]
+    public bool OperationConsumesAiCredits { get; set; }
+
+    [Parameter]
+    public bool OperationUsesActions { get; set; }
+
+    private bool IsBlockingCategory(string category) =>
+        Results.Result?.FirstFailingGate is not null &&
+        string.Equals(Results.BlockingGuardrail?.Category, category, StringComparison.OrdinalIgnoreCase);
+
+    private bool IsBlockingGate(string gateId) =>
+        string.Equals(Results.Result?.FirstFailingGate, gateId, StringComparison.OrdinalIgnoreCase);
+
+    private string UlbImpactClass(UserLevelBudgetKind kind) =>
+        IsBlockingCategory(GuardrailCategories.UserLevelBudget) &&
+        Results.Result?.EffectiveUlb?.Kind == kind
+            ? "impacted-setting"
+            : "";
+
+    private string ImpactClass(string category) =>
+        IsBlockingCategory(category) ? "impacted-setting" : "";
+
+    private static GuardrailMetadata Metadata(string key) =>
+        GuardrailMetadataCatalog.Resolve(key);
+
+    private static string Friendly(string value) =>
+        string.Concat(value.Select((character, index) =>
+            index > 0 && char.IsUpper(character) ? $" {character}" : character.ToString()));
+}
