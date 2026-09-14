@@ -26,7 +26,8 @@ jobs:
         shell: bash
         run: |
           dotnet pack src/CopilotUsageSimulator.BundleTool --configuration Release --no-build --output "$RUNNER_TEMP/compass-packages"
-          dotnet tool install CopilotUsageSimulator.BundleTool --version 0.1.0 --tool-path "$RUNNER_TEMP/compass-tool" --add-source "$RUNNER_TEMP/compass-packages"
+          tool_version="$(dotnet msbuild src/CopilotUsageSimulator.BundleTool -getProperty:Version)"
+          dotnet tool install CopilotUsageSimulator.BundleTool --version "$tool_version" --tool-path "$RUNNER_TEMP/compass-tool" --add-source "$RUNNER_TEMP/compass-packages"
           cd "$RUNNER_TEMP"
           "$RUNNER_TEMP/compass-tool/compass-bundle" --help
           "$RUNNER_TEMP/compass-tool/compass-bundle" create \
