@@ -32,6 +32,14 @@ Expected: exit `0`, a valid **Blocked** preview, `cc-spend` as the first failing
 
 In the primary Cost Compass page (`/`), use **Import a bundle or legacy scenario** to choose the generated bundle, then **Simulate**. The catalog and fingerprint travel with the scenario. Repeated previews do not advance balances. Import the bundle, not the collection snapshot or report.
 
+To retain the result as one of several selectable client environments, use **Add client profile bundle** instead. Name the raw evidence per client, for example `contoso.snapshot.json`, and create a reconciled profile payload:
+
+```powershell
+.\artifacts\bundle-tool\bin\compass-bundle.exe create --snapshot artifacts/enterprise-import/contoso.snapshot.json --workload artifacts/enterprise-import/workload.json --overrides artifacts/enterprise-import/contoso.overrides.json --output artifacts/enterprise-import/contoso.compass.json
+```
+
+Add `contoso.compass.json` to Compass. The browser does not accept `contoso.snapshot.json` or its adjacent coverage report as a profile because those files do not, by themselves, establish future workload demand, authoritative pool consumption, paid-usage state, or every required financial confirmation. No client profile is bundled with the app or selected automatically. Profiles are keyed by observed enterprise and reconciled selected user; a newer bundle for that identity replaces only its prior browser profile. BundleTool adds an integrity digest over the reconciled scenario and catalog so later edits are detected. This digest is not a signature and does not prove who collected or supplied the evidence.
+
 ## Collect an Enterprise
 
 Supported host: GitHub Enterprise Cloud on `github.com`, API host `https://api.github.com`, version `2026-03-10`. GHES and data-residency-specific hosts are not supported in this release.
@@ -134,6 +142,7 @@ The report includes the typed confirmations, unapplied-confirmation warnings, re
 ## Boundaries and Privacy
 
 - One selected user and one workload per bundle. Shared seat inventory across cost centers is retained, and `--all-seat-usage` may retain monthly usage observations for every seat, but ULB consumption and applicable controls remain selected-user data. Export again before changing the selected user; the app's user selector does not fetch fresh consumption.
+- A selected browser client profile locks that user identity. Store separate profiles for other users or clients. Selecting no profile, a pinned demo, or Reset does not delete the stored profile collection.
 - Current Compass evidence supports Business/Enterprise scenarios from **September 1 through September 27, 2026**, with narrower model-price evidence windows. Collection can run later; creation then reports an unsupported date. Never backdate a live snapshot or extend prices to obtain a successful estimate.
 - The output bundle must fit the browser's **2,097,152-byte** file-import limit. The collector/replay input limit is **64 MiB**, and each HTTP page is bounded to **4 MiB**. Oversized enterprises fail explicitly; seats are never dropped to fit the bundle.
 - Required seat, cost-center, team and budget inventory coverage must be complete. Optional usage/state failures remain visible; missing nonnullable balances still require confirmations. Capture may not cross a UTC billing-month boundary.

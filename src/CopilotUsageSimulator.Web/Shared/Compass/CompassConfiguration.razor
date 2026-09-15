@@ -43,6 +43,7 @@
             <div class="cp-field">
                 <label for="cc-user">Billed user</label>
                 <select id="cc-user" value="@Model.Scenario.Attribution?.UserId"
+                    disabled="@Model.HasSelectedClientProfile"
                         @onchange="@(e => Update(() => Model.SelectUser(e.Value?.ToString() ?? "")))">
                     @if (Model.Scenario.Attribution is { } attribution && !Model.Users.Contains(attribution.UserId))
                     {
@@ -53,6 +54,10 @@
                         <option value="@user">@user</option>
                     }
                 </select>
+                @if (Model.HasSelectedClientProfile)
+                {
+                    <small>Fixed to the user whose controls were reconciled in this client profile.</small>
+                }
             </div>
             <div class="cp-field">
                 <label for="cc-plan">Selected user's Copilot plan</label>

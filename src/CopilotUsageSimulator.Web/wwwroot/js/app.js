@@ -12,6 +12,69 @@ window.simulator = {
 
 window.costCompass = {
     getTheme: () => document.documentElement.getAttribute("data-theme") || "light",
+    loadClientProfiles: storagePrefix => {
+        const profiles = [];
+        for (let index = 0; index < localStorage.length; index += 1) {
+            const key = localStorage.key(index);
+            if (!key?.startsWith(storagePrefix)) continue;
+            const document = localStorage.getItem(key);
+            if (document !== null) profiles.push({ key, document });
+        }
+        return profiles.sort((left, right) => left.key.localeCompare(right.key));
+    },
+    saveClientProfile: async (
+        storagePrefix,
+        profileId,
+        capturedAtTicks,
+        profileIntegritySha256,
+        document,
+        expectedKeys,
+        removeKeys) => {
+        const profilePrefix = `${storagePrefix}${profileId}.`;
+        const candidateKey = `${profilePrefix}${capturedAtTicks}.${profileIntegritySha256}`;
+        const transaction = () => {
+            const currentKeys = [];
+            for (let index = 0; index < localStorage.length; index += 1) {
+                const key = localStorage.key(index);
+                if (key?.startsWith(profilePrefix)) currentKeys.push(key);
+            }
+            currentKeys.sort();
+            const expected = [...expectedKeys].sort();
+            if (currentKeys.length !== expected.length ||
+                currentKeys.some((key, index) => key !== expected[index])) return "retry";
+
+            localStorage.setItem(candidateKey, document);
+            for (const key of removeKeys) {
+                if (key !== candidateKey) localStorage.removeItem(key);
+            }
+            const committedKeys = [];
+            for (let index = 0; index < localStorage.length; index += 1) {
+                const key = localStorage.key(index);
+                if (key?.startsWith(profilePrefix)) committedKeys.push(key);
+            }
+            if (committedKeys.length !== 1 || committedKeys[0] !== candidateKey) {
+                localStorage.removeItem(candidateKey);
+                return "retry";
+            }
+            return "saved";
+        };
+        return navigator.locks
+            ? navigator.locks.request(`cost-compass-client-profile:${profileId}`, transaction)
+            : transaction();
+    },
+    removeClientProfile: async (profilePrefix, profileId) => {
+        const transaction = () => {
+            const keys = [];
+            for (let index = 0; index < localStorage.length; index += 1) {
+                const key = localStorage.key(index);
+                if (key?.startsWith(profilePrefix)) keys.push(key);
+            }
+            for (const key of keys) localStorage.removeItem(key);
+        };
+        return navigator.locks
+            ? navigator.locks.request(`cost-compass-client-profile:${profileId}`, transaction)
+            : transaction();
+    },
     revealSetting: (settingId) => {
         const target = document.getElementById(settingId);
         if (!target) throw new Error("The setting is no longer available. Run a fresh simulation.");

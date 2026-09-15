@@ -16,6 +16,7 @@ public sealed class CompassPageModel(
     ScenarioEditorAdapter editor,
     ScenarioJson scenarioJson,
     CompassBundleCodec bundles,
+    CompassClientProfileCodec clientProfiles,
     CompassBrowserPersistence persistence)
 {
     private readonly EngineConfiguration _defaultConfiguration = defaultConfiguration;
@@ -25,6 +26,7 @@ public sealed class CompassPageModel(
     private decimal _actionsConsumed;
     private ModelEligibilityEvaluator? _eligibility;
     private ScenarioEditorState _baselineForm = new();
+    private IReadOnlyList<CompassClientProfile> _clientProfiles = [];
 
     public EngineConfiguration Configuration { get; private set; } = defaultConfiguration;
     public SimulationScenario Scenario { get; private set; } =
@@ -69,6 +71,11 @@ public sealed class CompassPageModel(
     public string? Error { get; private set; }
     public string? Notice { get; private set; }
     public string? EvidenceWarning { get; private set; }
+    public IReadOnlyList<CompassClientProfile> ClientProfiles => _clientProfiles;
+    public string? SelectedClientProfileId { get; private set; }
+    public CompassClientProfile? SelectedClientProfile => _clientProfiles.FirstOrDefault(profile =>
+        string.Equals(profile.Id, SelectedClientProfileId, StringComparison.OrdinalIgnoreCase));
+    public bool HasSelectedClientProfile => SelectedClientProfile is not null;
     public string SelectedPreset { get; private set; } = "chat";
     public CompassProblem SelectedProblem { get; private set; } = CompassProblem.PaidUsageDisabled;
     public string SourceLabel { get; private set; } = "Paid usage disabled demo";
@@ -148,12 +155,18 @@ public sealed class CompassPageModel(
             Fail("Select a supported demonstration.");
             return;
         }
+        if (HasSelectedClientProfile && problem != CompassProblem.Standard)
+        {
+            Fail("Modeled demonstration conditions cannot replace a selected client's reconciled controls.");
+            return;
+        }
 
         LoadPreset(problem == CompassProblem.ActionsBudget ? "cloud-agent" : SelectedPreset, problem);
     }
 
     public void Reset()
     {
+        SelectedClientProfileId = null;
         Configuration = _defaultConfiguration;
         _eligibility = null;
         EvidenceWarning = null;
@@ -209,6 +222,12 @@ public sealed class CompassPageModel(
 
     public void SelectUser(string userId)
     {
+        if (HasSelectedClientProfile)
+        {
+            Fail("This client profile contains reconciled controls for one selected user. Import a profile collected for the other user instead.");
+            return;
+        }
+
         if (!TryCapture(out var current) || current.Attribution is null)
         {
             return;
@@ -298,6 +317,7 @@ public sealed class CompassPageModel(
             Configuration = imported.Catalog;
             _eligibility = null;
             Scenario = imported.Scenario;
+            SelectedClientProfileId = null;
             SourceLabel = source;
             EvidenceWarning = imported.Warning;
             SelectedPreset = CompassPresetFactory.Presets.Any(p => p.OperationId == Scenario.OperationId) ? Scenario.OperationId : "";
@@ -312,6 +332,169 @@ public sealed class CompassPageModel(
         {
             Fail($"{Describe(exception)} Your working scenario and catalog were preserved.");
             return false;
+        }
+    }
+
+    public async Task LoadClientProfilesAsync()
+    {
+        try
+        {
+            var read = ReadClientProfileRecords(await persistence.LoadClientProfilesAsync());
+            var resolved = ResolveClientProfiles(read);
+            _clientProfiles = resolved.Profiles;
+            SelectedClientProfileId = null;
+            Error = resolved.InvalidRecords == 0
+                ? null
+                : $"{resolved.InvalidRecords} invalid client profile storage record(s) were ignored. Valid profiles remain available.";
+        }
+        catch (Exception exception) when (exception is BrowserPersistenceException || IsInputException(exception))
+        {
+            _clientProfiles = [];
+            SelectedClientProfileId = null;
+            Fail($"Saved client profiles could not be loaded: {Describe(exception)} No client profile was selected.");
+        }
+    }
+
+    public async Task AddClientProfileAsync(string json, string sourceFileName)
+    {
+        try
+        {
+            var profile = clientProfiles.Create(json, sourceFileName, _defaultConfiguration);
+            var document = clientProfiles.Export([profile]);
+            for (var attempt = 0; attempt < 3; attempt++)
+            {
+                var browserRecords = await persistence.LoadClientProfilesAsync();
+                var read = ReadClientProfileRecords(browserRecords);
+                var storedForIdentity = read.Records.Where(item =>
+                    string.Equals(item.Profile.Id, profile.Id, StringComparison.OrdinalIgnoreCase)).ToArray();
+                var local = _clientProfiles.FirstOrDefault(candidate =>
+                    string.Equals(candidate.Id, profile.Id, StringComparison.OrdinalIgnoreCase));
+                var newestStored = storedForIdentity.Select(item => item.Profile.CapturedAt).DefaultIfEmpty(DateTimeOffset.MinValue).Max();
+                var newestKnown = local is null ? newestStored : (local.CapturedAt > newestStored ? local.CapturedAt : newestStored);
+                if (newestKnown > profile.CapturedAt)
+                {
+                    Error = null;
+                    Notice = $"Client profile '{profile.DisplayName}' was not changed because a newer capture is already stored.";
+                    return;
+                }
+                if (local is not null && local.CapturedAt == profile.CapturedAt &&
+                    !string.Equals(local.IntegritySha256, profile.IntegritySha256, StringComparison.OrdinalIgnoreCase))
+                {
+                    Fail($"Client profile '{profile.DisplayName}' has conflicting bundles for the same capture time.");
+                    return;
+                }
+
+                var sameCapture = storedForIdentity.Where(item => item.Profile.CapturedAt == profile.CapturedAt).ToArray();
+                if (sameCapture.Length > 0)
+                {
+                    var identities = sameCapture.Select(item => item.Profile.IntegritySha256)
+                        .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+                    if (identities.Length > 1 || !identities.Contains(profile.IntegritySha256, StringComparer.OrdinalIgnoreCase))
+                    {
+                        Fail($"Client profile '{profile.DisplayName}' has conflicting bundles for the same capture time.");
+                        return;
+                    }
+                    _clientProfiles = MergeClientProfiles(ResolveClientProfiles(read).Profiles, _clientProfiles);
+                    Error = null;
+                    Notice = $"Client profile '{profile.DisplayName}' already contains this capture.";
+                    return;
+                }
+
+                var identityRecords = browserRecords.Where(record =>
+                    CompassBrowserPersistence.IsForProfile(record, profile.Id)).ToArray();
+                var saveStatus = await persistence.SaveClientProfileAsync(
+                    profile.Id,
+                    profile.CapturedAt,
+                    profile.IntegritySha256,
+                    document,
+                    identityRecords.Select(record => record.Key).ToArray(),
+                    identityRecords.Select(record => record.Key).ToArray());
+                if (saveStatus == ClientProfileSaveStatus.Retry) continue;
+
+                var nextProfiles = MergeClientProfiles(
+                    ResolveClientProfiles(read).Profiles,
+                    _clientProfiles.Where(candidate =>
+                        !string.Equals(candidate.Id, profile.Id, StringComparison.OrdinalIgnoreCase)).Append(profile));
+                var refreshSelectedProfile = string.Equals(SelectedClientProfileId, profile.Id, StringComparison.OrdinalIgnoreCase);
+                _clientProfiles = nextProfiles;
+                if (refreshSelectedProfile)
+                {
+                    if (!Import(profile.Bundle, $"Client profile: {profile.DisplayName}")) return;
+                    SelectedClientProfileId = profile.Id;
+                    Notice = $"Selected client profile '{profile.DisplayName}' for {profile.SelectedUser} was refreshed from the newer capture.";
+                    return;
+                }
+                Error = null;
+                Notice = $"Client profile '{profile.DisplayName}' for {profile.SelectedUser} was saved. Select it to load its environment.";
+                return;
+            }
+            Fail("The client profile changed in another tab while it was being saved. Try adding it again.");
+        }
+        catch (Exception exception) when (exception is BrowserPersistenceException || IsInputException(exception))
+        {
+            Fail($"The client profile could not be added: {Describe(exception)} Existing profiles and the working scenario were preserved.");
+        }
+    }
+
+    public async Task AddClientProfileFileAsync(IBrowserFile file)
+    {
+        try
+        {
+            await AddClientProfileAsync(await BrowserScenarioPersistence.ReadImportAsync(file), file.Name);
+        }
+        catch (IOException exception)
+        {
+            Fail($"The client profile file could not be read: {exception.Message} Existing profiles were preserved.");
+        }
+        catch (JSException exception)
+        {
+            Fail($"The browser could not read the client profile file: {exception.Message} Existing profiles were preserved.");
+        }
+    }
+
+    public void SelectClientProfile(string id)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            Reset();
+            Notice = "No client profile is selected. Stored profiles were preserved.";
+            return;
+        }
+
+        var profile = _clientProfiles.FirstOrDefault(candidate =>
+            string.Equals(candidate.Id, id, StringComparison.OrdinalIgnoreCase));
+        if (profile is null)
+        {
+            Fail("The selected client profile is no longer available.");
+            return;
+        }
+
+        if (!Import(profile.Bundle, $"Client profile: {profile.DisplayName}")) return;
+        SelectedClientProfileId = profile.Id;
+        Notice = $"Client profile '{profile.DisplayName}' for {profile.SelectedUser} selected. Simulate to evaluate its reconciled snapshot.";
+    }
+
+    public async Task RemoveSelectedClientProfileAsync()
+    {
+        var selected = SelectedClientProfile;
+        if (selected is null)
+        {
+            Fail("Select a client profile before removing it.");
+            return;
+        }
+
+        var nextProfiles = _clientProfiles.Where(profile =>
+            !string.Equals(profile.Id, selected.Id, StringComparison.OrdinalIgnoreCase)).ToArray();
+        try
+        {
+            await persistence.RemoveClientProfileAsync(selected.Id);
+            _clientProfiles = nextProfiles;
+            Reset();
+            Notice = $"Client profile '{selected.DisplayName}' for {selected.SelectedUser} was removed. No client profile is selected.";
+        }
+        catch (BrowserPersistenceException exception)
+        {
+            Fail($"The client profile was not removed: {exception.Message}");
         }
     }
 
@@ -388,6 +571,20 @@ public sealed class CompassPageModel(
         Invalidate();
         try
         {
+            if (HasSelectedClientProfile)
+            {
+                if (!TryCapture(out var environment)) return;
+                var workload = CompassPresetFactory.Create(Configuration, operationId, CompassProblem.Standard);
+                Scenario = ApplyPresetWorkload(environment, workload);
+                SelectedPreset = operationId;
+                SelectedProblem = CompassProblem.Standard;
+                Rehydrate();
+                IsCustomized = true;
+                Error = null;
+                Notice = $"The {operationId} workload was loaded while retaining the selected client environment.";
+                return;
+            }
+
             var scenario = CompassPresetFactory.Create(Configuration, operationId, problem);
             Scenario = scenario;
             SelectedPreset = operationId;
@@ -410,6 +607,100 @@ public sealed class CompassPageModel(
             Fail($"{Describe(exception)} Use Reset to restore the default catalog.");
         }
     }
+
+    private static SimulationScenario ApplyPresetWorkload(
+        SimulationScenario environment,
+        SimulationScenario workload)
+    {
+        var actionsUsage = workload.ActionsUsage is null
+            ? null
+            : environment.ActionsGuardrails is null
+                ? throw new ConfigurationException(
+                    "The selected client profile has no reconciled Actions balances or controls for a cloud-agent workload.")
+                : workload.ActionsUsage with
+                {
+                    IncludedMinutesRemaining = Math.Max(0m,
+                        environment.ActionsGuardrails.IncludedMinutes -
+                        environment.ActionsGuardrails.ConsumedIncludedMinutes)
+                };
+        var metadata = new Dictionary<string, string>(environment.Metadata, StringComparer.OrdinalIgnoreCase);
+        foreach (var key in new[] { "task", "compassPreset", "compassProblem", "actionsAccounting" })
+        {
+            if (workload.Metadata.TryGetValue(key, out var value)) metadata[key] = value;
+            else metadata.Remove(key);
+        }
+        metadata.Remove("repeatCount");
+
+        return environment with
+        {
+            OperationId = workload.OperationId,
+            RepositoryVisibility = workload.RepositoryVisibility,
+            Calls = workload.Calls,
+            ActionsUsage = actionsUsage,
+            Metadata = metadata
+        };
+    }
+
+    private ClientProfileRecordRead ReadClientProfileRecords(IReadOnlyList<ClientProfileBrowserRecord> browserRecords)
+    {
+        var valid = new List<ValidatedClientProfileRecord>();
+        var invalidRecords = 0;
+        foreach (var record in browserRecords)
+        {
+            try
+            {
+                var stored = clientProfiles.Import(record.Document, _defaultConfiguration);
+                if (stored.Count != 1 || !CompassBrowserPersistence.Matches(record, stored[0]))
+                    throw new JsonException("Each stored client profile record must contain its matching profile version.");
+                valid.Add(new(record, stored[0]));
+            }
+            catch (Exception exception) when (IsInputException(exception))
+            {
+                invalidRecords++;
+            }
+        }
+        return new(valid, invalidRecords);
+    }
+
+    private static ClientProfileResolution ResolveClientProfiles(ClientProfileRecordRead read)
+    {
+        var invalidRecords = read.InvalidRecords;
+        var resolved = new List<CompassClientProfile>();
+        foreach (var group in read.Records.GroupBy(item => item.Profile.Id, StringComparer.OrdinalIgnoreCase))
+        {
+            var capturedAt = group.Max(item => item.Profile.CapturedAt);
+            var latest = group.Where(item => item.Profile.CapturedAt == capturedAt).ToArray();
+            if (latest.Select(item => item.Profile.IntegritySha256)
+                .Distinct(StringComparer.OrdinalIgnoreCase).Count() > 1)
+            {
+                invalidRecords += latest.Length;
+                continue;
+            }
+            resolved.Add(latest.OrderBy(item => item.Record.Key, StringComparer.Ordinal).Last().Profile);
+        }
+        return new(resolved.OrderBy(profile => profile.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(profile => profile.SelectedUser, StringComparer.OrdinalIgnoreCase).ToArray(), invalidRecords);
+    }
+
+    private static IReadOnlyList<CompassClientProfile> MergeClientProfiles(
+        IEnumerable<CompassClientProfile> preferred,
+        IEnumerable<CompassClientProfile> fallback) =>
+        preferred.Concat(fallback).GroupBy(profile => profile.Id, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.OrderByDescending(profile => profile.CapturedAt).First())
+            .OrderBy(profile => profile.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(profile => profile.SelectedUser, StringComparer.OrdinalIgnoreCase).ToArray();
+
+    private sealed record ValidatedClientProfileRecord(
+        ClientProfileBrowserRecord Record,
+        CompassClientProfile Profile);
+
+    private sealed record ClientProfileRecordRead(
+        IReadOnlyList<ValidatedClientProfileRecord> Records,
+        int InvalidRecords);
+
+    private sealed record ClientProfileResolution(
+        IReadOnlyList<CompassClientProfile> Profiles,
+        int InvalidRecords);
 
     private void Rehydrate(ScenarioEditorState? preparedForm = null, string? preparedFingerprint = null)
     {

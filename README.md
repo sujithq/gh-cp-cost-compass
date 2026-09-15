@@ -76,6 +76,8 @@ The current first blocker's setting is highlighted and its section expanded. **R
 
 Load/import validates the schema, version, scenario, catalog, and fingerprint before replacing the working state. Malformed input preserves the previous scenario and catalog while clearing the old verdict. Legacy scenario-only JSON remains importable with an explicit warning that the active catalog is being used.
 
+The primary Compass page can retain multiple client profiles in browser storage. No client profile is built in or selected automatically. Add a complete `.compass.json` bundle generated from a client-specific `client.snapshot.json`, explicit workload, and confirmed overrides; importing a newer bundle for the same enterprise and selected user replaces only that profile. Selecting a profile loads its complete reconciled scenario and matching catalog. Workload presets then change only workload demand while retaining the selected client identity and controls; synthetic demo situations are unavailable in profile mode. Selecting **No client profile selected** or resetting returns to the verified demo environment without deleting stored profiles. The billed user is fixed while a profile is selected because ULB and applicable budget state belong to that collected identity.
+
 Sources have a verification date separate from the simulation date. Calendar-date model announcements use explicit midnight-UTC simulation boundaries, not an inferred exact live billing cutover. Sol's old promotional period is preserved alongside its sourced standard successor; no undocumented post-promotion Gemini price or cache-write rate is invented.
 
 ## Projects

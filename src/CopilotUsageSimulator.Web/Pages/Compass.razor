@@ -87,6 +87,46 @@
     </div>
 </details>
 
+<section class="cp-profile-bar" aria-labelledby="cc-client-profile-title">
+    <div class="cp-profile-heading">
+        <p class="cp-kicker">Client environment</p>
+        <h2 id="cc-client-profile-title">@(Model.SelectedClientProfile?.DisplayName ?? "No client profile selected")</h2>
+        <small>Profiles are stored in this browser and are never selected automatically.</small>
+    </div>
+    <div class="cp-profile-controls">
+        <div class="cp-field">
+            <label for="cc-client-profile">Client profile</label>
+            <select id="cc-client-profile" value="@(Model.SelectedClientProfileId ?? "")"
+                    @onchange="@(e => SelectClientProfile(e.Value?.ToString() ?? ""))">
+                <option value="">No client profile selected</option>
+                @foreach (var profile in Model.ClientProfiles)
+                {
+                    <option value="@profile.Id">@profile.DisplayName - @profile.SelectedUser</option>
+                }
+            </select>
+        </div>
+        <div class="cp-file-input">
+            <label for="cc-profile-file">Add client profile bundle</label>
+            <InputFile id="cc-profile-file" OnChange="AddClientProfileFileAsync" accept=".json,application/json" />
+            <small>Use a complete .compass.json bundle generated from that client's snapshot, workload, and confirmed overrides.</small>
+        </div>
+        <button id="cc-remove-profile" class="cp-button cp-button-small" disabled="@(!Model.HasSelectedClientProfile)"
+                @onclick="Model.RemoveSelectedClientProfileAsync">Remove selected</button>
+    </div>
+    @if (Model.SelectedClientProfile is { } selectedProfile)
+    {
+        <dl class="cp-profile-evidence">
+            <div><dt>Selected user</dt><dd>@selectedProfile.SelectedUser</dd></div>
+            <div><dt>Captured</dt><dd>@selectedProfile.CapturedAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm 'UTC'")</dd></div>
+            <div><dt>Source</dt><dd>@selectedProfile.SourceFileName</dd></div>
+        </dl>
+    }
+    else if (Model.ClientProfiles.Count == 0)
+    {
+        <p class="cp-help">No client profiles are stored. The pinned demonstration is not a client profile.</p>
+    }
+</section>
+
 <main class="cp-workspace">
     <section class="cp-panel cp-presets-panel" aria-labelledby="cc-presets-title">
         <div class="cp-panel-heading">
@@ -118,6 +158,7 @@
                 <div class="cp-field">
                     <label for="cc-problem">Explore a modeled situation</label>
                     <select id="cc-problem" value="@Model.SelectedProblem"
+                            disabled="@Model.HasSelectedClientProfile"
                             @onchange="@(e => Model.SelectProblem(e.Value?.ToString() ?? ""))">
                         <option value="@CompassProblem.Standard">Standard workload</option>
                         <option value="@CompassProblem.PaidUsageDisabled">Insufficient credits, paid disabled</option>
@@ -184,16 +225,16 @@
     {
         if (firstRender)
         {
+            await Model.LoadClientProfilesAsync();
             try
             {
                 _theme = await JS.InvokeAsync<string>("costCompass.getTheme") ?? "light";
-                StateHasChanged();
             }
             catch (JSException exception)
             {
                 Model.ReportError($"Theme preference could not be read: {exception.Message}");
-                StateHasChanged();
             }
+            StateHasChanged();
         }
         if (_pendingSettingId is { } settingId)
         {
@@ -246,6 +287,8 @@
 
     private void ImportText() => Model.Import(_bundleText);
     private Task ImportFileAsync(InputFileChangeEventArgs args) => Model.ImportFileAsync(args.File);
+    private Task AddClientProfileFileAsync(InputFileChangeEventArgs args) => Model.AddClientProfileFileAsync(args.File);
+    private void SelectClientProfile(string id) => Model.SelectClientProfile(id);
     private async Task ShowDecisionFlow()
     {
         try

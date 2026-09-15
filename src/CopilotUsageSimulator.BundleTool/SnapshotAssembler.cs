@@ -49,13 +49,14 @@ public sealed class SnapshotAssembler
         mapper.ReportUnusedConfirmations();
         var metadata = new Dictionary<string, string>
         {
-            ["import.enterprise"] = snapshot.Enterprise,
-            ["import.selectedUser"] = inventory.Attribution.UserId,
-            ["import.captureStartedAt"] = snapshot.CapturedAt.ToString("O", CultureInfo.InvariantCulture),
-            ["import.captureCompletedAt"] = snapshot.CaptureCompletedAt.ToString("O", CultureInfo.InvariantCulture),
-            ["import.snapshotSha256"] = Hash(ImportJson.Write(snapshot)),
-            ["import.overridesSha256"] = Hash(ImportJson.Write(overrides)),
-            ["import.scope"] = "One selected-user what-if; export again for another user. Reported usage is not guaranteed current."
+            [CompassClientProfileMetadata.ContractKey] = CompassClientProfileMetadata.Contract,
+            [CompassClientProfileMetadata.EnterpriseKey] = snapshot.Enterprise,
+            [CompassClientProfileMetadata.SelectedUserKey] = inventory.Attribution.UserId,
+            [CompassClientProfileMetadata.CaptureStartedAtKey] = snapshot.CapturedAt.ToString("O", CultureInfo.InvariantCulture),
+            [CompassClientProfileMetadata.CaptureCompletedAtKey] = snapshot.CaptureCompletedAt.ToString("O", CultureInfo.InvariantCulture),
+            [CompassClientProfileMetadata.SnapshotSha256Key] = Hash(ImportJson.Write(snapshot)),
+            [CompassClientProfileMetadata.OverridesSha256Key] = Hash(ImportJson.Write(overrides)),
+            [CompassClientProfileMetadata.ScopeKey] = CompassClientProfileMetadata.Scope
         };
         if (workload.Actions is not null) metadata["actionsAccount"] = workload.Actions.Account;
         var scenario = new SimulationScenario
@@ -79,8 +80,10 @@ public sealed class SnapshotAssembler
             },
             Metadata = metadata
         };
+        var codec = new CompassBundleCodec(new ScenarioJson());
+        scenario = CompassClientProfileMetadata.AddIntegrityDigest(scenario, catalog, codec);
         SimulationScenarioValidator.Validate(scenario);
-        var json = new CompassBundleCodec(new ScenarioJson()).Export(scenario, catalog);
+        var json = codec.Export(scenario, catalog);
         var inspected = BundleInspector.Validate(json);
         var report = inspected with
         {

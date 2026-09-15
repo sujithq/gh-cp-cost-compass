@@ -31,15 +31,7 @@ public sealed class CompassBundleCodec(ScenarioJson scenarioJson)
     {
         SimulationScenarioValidator.Validate(scenario);
         EngineConfigurationValidator.Validate(catalog);
-        return JsonSerializer.Serialize(new CompassScenarioBundle
-        {
-            Schema = Schema,
-            SchemaVersion = SchemaVersion,
-            EngineContract = EngineContract,
-            Scenario = scenario,
-            Catalog = catalog,
-            CatalogSha256 = CatalogHash(catalog)
-        }, Options);
+        return SerializeBundle(scenario, catalog, CatalogHash(catalog));
     }
 
     public CompassImportedScenario Import(string json, EngineConfiguration activeCatalog)
@@ -77,7 +69,7 @@ public sealed class CompassBundleCodec(ScenarioJson scenarioJson)
 
         SimulationScenarioValidator.Validate(bundle.Scenario);
         EngineConfigurationValidator.Validate(bundle.Catalog);
-        if (!string.Equals(bundle.CatalogSha256, CatalogHash(bundle.Catalog), StringComparison.OrdinalIgnoreCase))
+        if (!MatchesCatalogHash(bundle.Catalog, bundle.CatalogSha256))
         {
             throw new JsonException("The catalog fingerprint does not match the saved reference. The current scenario was not replaced.");
         }
@@ -86,7 +78,50 @@ public sealed class CompassBundleCodec(ScenarioJson scenarioJson)
     }
 
     public static string CatalogHash(EngineConfiguration catalog) =>
-        Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(catalog, Options))));
+        Hash(JsonSerializer.Serialize(catalog, Options).ReplaceLineEndings("\n"));
+
+    internal string BundleContentHash(SimulationScenario scenario, EngineConfiguration catalog)
+    {
+        SimulationScenarioValidator.Validate(scenario);
+        EngineConfigurationValidator.Validate(catalog);
+        return Hash(SerializeBundle(scenario, catalog, CatalogHash(catalog)).ReplaceLineEndings("\n"));
+    }
+
+    internal bool MatchesBundleContentHash(
+        SimulationScenario scenario,
+        EngineConfiguration catalog,
+        string expected) =>
+        string.Equals(expected, BundleContentHash(scenario, catalog), StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(expected, LegacyWindowsBundleContentHash(scenario, catalog), StringComparison.OrdinalIgnoreCase);
+
+    private static bool MatchesCatalogHash(EngineConfiguration catalog, string expected) =>
+        string.Equals(expected, CatalogHash(catalog), StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(expected, LegacyWindowsCatalogHash(catalog), StringComparison.OrdinalIgnoreCase);
+
+    private static string LegacyWindowsBundleContentHash(
+        SimulationScenario scenario,
+        EngineConfiguration catalog) =>
+        Hash(SerializeBundle(scenario, catalog, LegacyWindowsCatalogHash(catalog)).ReplaceLineEndings("\r\n"));
+
+    private static string LegacyWindowsCatalogHash(EngineConfiguration catalog) =>
+        Hash(JsonSerializer.Serialize(catalog, Options).ReplaceLineEndings("\r\n"));
+
+    private static string SerializeBundle(
+        SimulationScenario scenario,
+        EngineConfiguration catalog,
+        string catalogSha256) =>
+        JsonSerializer.Serialize(new CompassScenarioBundle
+        {
+            Schema = Schema,
+            SchemaVersion = SchemaVersion,
+            EngineContract = EngineContract,
+            Scenario = scenario,
+            Catalog = catalog,
+            CatalogSha256 = catalogSha256
+        }, Options);
+
+    private static string Hash(string content) =>
+        Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(content)));
 
     private sealed class CanonicalDecimalConverter : JsonConverter<decimal>
     {

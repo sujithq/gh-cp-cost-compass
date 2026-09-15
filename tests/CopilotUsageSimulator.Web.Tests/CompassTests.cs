@@ -18,6 +18,7 @@ public sealed class CompassTests : BunitContext
     public CompassTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
+        JSInterop.Setup<string>("costCompass.saveClientProfile", _ => true).SetResult("saved");
         Services.AddSingleton(EngineConfigurationLoader.LoadDefault());
         Services.AddSingleton<ScenarioJson>();
         Services.AddSingleton<WorkloadEditorAdapter>();
@@ -27,6 +28,7 @@ public sealed class CompassTests : BunitContext
         Services.AddSingleton<ActionsEditorAdapter>();
         Services.AddSingleton<ScenarioEditorAdapter>();
         Services.AddSingleton<CompassBundleCodec>();
+        Services.AddSingleton<CompassClientProfileCodec>();
         Services.AddScoped<CompassBrowserPersistence>();
         Services.AddScoped<CompassPageModel>();
     }
@@ -44,6 +46,203 @@ public sealed class CompassTests : BunitContext
         Assert.Contains("60 / 60", cut.Markup);
         Assert.Contains("11 Sep 2026", cut.Markup);
         Assert.DoesNotContain("data-testid=\"compass-actions\"", cut.Markup);
+    }
+
+    [Fact]
+    public void MultipleClientProfilesRequireExplicitSelectionAndKeepSelectedUserFixed()
+    {
+        var cut = Render<Compass>();
+        var model = Services.GetRequiredService<CompassPageModel>();
+        var firstBundle = CreateClientProfileBundle(model, "contoso", "2026-09-14T10:00:00Z");
+        var secondBundle = CreateClientProfileBundle(model, "fabrikam", "2026-09-14T11:00:00Z");
+
+        Assert.Null(model.SelectedClientProfileId);
+        Assert.Empty(model.ClientProfiles);
+        Assert.Equal("No client profile selected", cut.Find("#cc-client-profile option").TextContent);
+
+        var profileInput = cut.FindComponents<InputFile>().Single(component => component.Find("input").Id == "cc-profile-file");
+        profileInput.UploadFiles(InputFileContent.CreateFromText(firstBundle, "contoso.compass.json"));
+        profileInput.UploadFiles(InputFileContent.CreateFromText(secondBundle, "fabrikam.compass.json"));
+
+        Assert.Equal(2, model.ClientProfiles.Count);
+        Assert.Null(model.SelectedClientProfile);
+        Assert.Equal(3, cut.FindAll("#cc-client-profile option").Count);
+        var contoso = model.ClientProfiles.Single(profile => profile.DisplayName == "contoso");
+
+        cut.Find("#cc-client-profile").Change(contoso.Id);
+
+        Assert.Equal(contoso.Id, model.SelectedClientProfileId);
+        Assert.Equal("contoso", model.Scenario.BillingContext!.BillingEntityId);
+        Assert.True(cut.Find("#cc-user").HasAttribute("disabled"));
+        Assert.Equal("user-1", model.Scenario.Attribution!.UserId);
+
+        var originalContosoId = model.SelectedClientProfileId;
+        profileInput.UploadFiles(InputFileContent.CreateFromText(
+            CreateClientProfileBundle(model, "contoso", "2026-09-14T12:00:00Z"), "contoso-latest.compass.json"));
+
+        Assert.Equal(2, model.ClientProfiles.Count);
+        Assert.Equal(originalContosoId, model.SelectedClientProfileId);
+        Assert.Equal(DateTimeOffset.Parse("2026-09-14T12:00:00Z"), model.SelectedClientProfile!.CapturedAt);
+        Assert.Contains(model.ClientProfiles, profile => profile.DisplayName == "fabrikam");
+
+        profileInput.UploadFiles(InputFileContent.CreateFromText(
+            CreateClientProfileBundle(model, "contoso", "2026-09-14T12:00:00Z"), "renamed.compass.json"));
+        Assert.Equal(2, model.ClientProfiles.Count);
+        Assert.Null(model.Error);
+
+        profileInput.UploadFiles(InputFileContent.CreateFromText(
+            CreateClientProfileBundle(model, "contoso", "2026-09-14T11:00:00Z"), "contoso-older.compass.json"));
+        Assert.Equal(DateTimeOffset.Parse("2026-09-14T12:00:00Z"), model.SelectedClientProfile!.CapturedAt);
+        Assert.Contains("newer capture", model.Notice);
+
+        cut.Find("#cc-remove-profile").Click();
+
+        Assert.Single(model.ClientProfiles);
+        Assert.Null(model.SelectedClientProfileId);
+        Assert.Equal(2, cut.FindAll("#cc-client-profile option").Count);
+    }
+
+    [Fact]
+    public void StoredClientProfilesReloadWithoutAutomaticSelection()
+    {
+        var catalog = Services.GetRequiredService<EngineConfiguration>();
+        var template = CompassPresetFactory.Create(catalog, "chat", CompassProblem.PaidUsageDisabled);
+        var bundle = CreateClientProfileBundle(template, catalog, "contoso", "2026-09-14T10:00:00Z");
+        var codec = Services.GetRequiredService<CompassClientProfileCodec>();
+        var stored = codec.Export([codec.Create(bundle, "contoso.compass.json", catalog)]);
+        var profile = Assert.Single(codec.Import(stored, catalog));
+        var document = BrowserRecord(profile, stored);
+        JSInterop.Setup<ClientProfileBrowserRecord[]>(
+            "costCompass.loadClientProfiles", CompassBrowserPersistence.ClientProfileStoragePrefix)
+            .SetResult([document]);
+
+        var cut = Render<Compass>();
+        var model = Services.GetRequiredService<CompassPageModel>();
+
+        Assert.Single(model.ClientProfiles);
+        Assert.Null(model.SelectedClientProfileId);
+        Assert.NotEqual("contoso", model.Scenario.BillingContext!.BillingEntityId);
+        Assert.Equal("", cut.Find("#cc-client-profile").GetAttribute("value"));
+    }
+
+    [Fact]
+    public void MalformedStoredProfileDoesNotHideValidProfiles()
+    {
+        var catalog = Services.GetRequiredService<EngineConfiguration>();
+        var template = CompassPresetFactory.Create(catalog, "chat", CompassProblem.PaidUsageDisabled);
+        var bundle = CreateClientProfileBundle(template, catalog, "contoso", "2026-09-14T10:00:00Z");
+        var codec = Services.GetRequiredService<CompassClientProfileCodec>();
+        var stored = codec.Export([codec.Create(bundle, "contoso.compass.json", catalog)]);
+        var profile = Assert.Single(codec.Import(stored, catalog));
+        JSInterop.Setup<ClientProfileBrowserRecord[]>(
+            "costCompass.loadClientProfiles", CompassBrowserPersistence.ClientProfileStoragePrefix)
+            .SetResult([
+                new ClientProfileBrowserRecord
+                {
+                    Key = $"{CompassBrowserPersistence.ClientProfileStoragePrefix}malformed",
+                    Document = "{"
+                },
+                BrowserRecord(profile, stored)
+            ]);
+
+        Render<Compass>();
+        var model = Services.GetRequiredService<CompassPageModel>();
+
+        Assert.Single(model.ClientProfiles);
+        Assert.Null(model.SelectedClientProfileId);
+        Assert.Contains("1 invalid client profile storage record", model.Error);
+    }
+
+    [Fact]
+    public void MalformedFutureStorageRecordCannotBlockAValidProfile()
+    {
+        var catalog = Services.GetRequiredService<EngineConfiguration>();
+        var template = CompassPresetFactory.Create(catalog, "chat", CompassProblem.PaidUsageDisabled);
+        var bundle = CreateClientProfileBundle(template, catalog, "contoso", "2026-09-14T10:00:00Z");
+        var codec = Services.GetRequiredService<CompassClientProfileCodec>();
+        var profile = codec.Create(bundle, "contoso.compass.json", catalog);
+        var malformedKey = $"{CompassBrowserPersistence.ClientProfileStoragePrefix}{profile.Id}.9999999999999999999.{new string('f', 64)}";
+        JSInterop.Setup<ClientProfileBrowserRecord[]>(
+            "costCompass.loadClientProfiles", CompassBrowserPersistence.ClientProfileStoragePrefix)
+            .SetResult([new ClientProfileBrowserRecord { Key = malformedKey, Document = "{" }]);
+        var cut = Render<Compass>();
+
+        var profileInput = cut.FindComponents<InputFile>().Single(component => component.Find("input").Id == "cc-profile-file");
+        profileInput.UploadFiles(InputFileContent.CreateFromText(bundle, "contoso.compass.json"));
+
+        var model = Services.GetRequiredService<CompassPageModel>();
+        Assert.Single(model.ClientProfiles);
+        Assert.Null(model.SelectedClientProfileId);
+        Assert.Null(model.Error);
+        var save = JSInterop.Invocations.Last(invocation => invocation.Identifier == "costCompass.saveClientProfile");
+        Assert.Contains(malformedKey, Assert.IsAssignableFrom<IEnumerable<string>>(save.Arguments[6]));
+    }
+
+    [Fact]
+    public void WorkloadPresetRetainsSelectedClientEnvironment()
+    {
+        var cut = Render<Compass>();
+        var model = Services.GetRequiredService<CompassPageModel>();
+        var source = CompassPresetFactory.Create(model.Configuration, "cloud-agent") with
+        {
+            CheckScope = SimulationCheckScope.CostRelatedOnly
+        };
+        var bundle = CreateClientProfileBundle(source, model.Configuration, "contoso", "2026-09-14T10:00:00Z");
+        var profileInput = cut.FindComponents<InputFile>().Single(component => component.Find("input").Id == "cc-profile-file");
+        profileInput.UploadFiles(InputFileContent.CreateFromText(bundle, "contoso.compass.json"));
+        var profile = Assert.Single(model.ClientProfiles);
+        cut.Find("#cc-client-profile").Change(profile.Id);
+        var configuration = model.Configuration;
+        var timestamp = model.Scenario.Timestamp;
+        var billing = model.Scenario.BillingContext;
+        var attribution = model.Scenario.Attribution;
+        var runtime = model.Scenario.RuntimeGuardrails;
+        var actions = model.Scenario.ActionsGuardrails;
+
+        cut.Find("[data-preset=chat]").Click();
+        cut.Find("#cc-pool-used").Input("1234");
+        cut.Find("[data-preset=cloud-agent]").Click();
+        cut.Find("#cc-actions-used").Input("3");
+        cut.Find("[data-preset=chat]").Click();
+        cut.Find("[data-preset=cloud-agent]").Click();
+
+        Assert.Equal(profile.Id, model.SelectedClientProfileId);
+        Assert.Same(configuration, model.Configuration);
+        Assert.Equal(timestamp, model.Scenario.Timestamp);
+        Assert.Same(billing, model.Scenario.BillingContext);
+        Assert.Same(attribution, model.Scenario.Attribution);
+        Assert.Same(runtime, model.Scenario.RuntimeGuardrails);
+        Assert.Equal(1234m, model.Scenario.EconomicGuardrails!.EnterprisePoolConsumedCredits);
+        var currentActions = Assert.IsType<ActionsGuardrailSnapshot>(model.Scenario.ActionsGuardrails);
+        Assert.Equivalent(actions! with { ConsumedIncludedMinutes = 3m }, currentActions, strict: true);
+        Assert.Equal(SimulationCheckScope.CostRelatedOnly, model.Scenario.CheckScope);
+        Assert.Equal("cloud-agent", model.Scenario.OperationId);
+        Assert.Equal(currentActions.IncludedMinutes - currentActions.ConsumedIncludedMinutes,
+            model.Scenario.ActionsUsage!.IncludedMinutesRemaining);
+        Assert.True(cut.Find("#cc-problem").HasAttribute("disabled"));
+
+        cut.Find("#cc-simulate").Click();
+
+        Assert.Null(model.Error);
+        Assert.NotNull(model.Preview);
+    }
+
+    [Fact]
+    public void CloudAgentPresetRequiresClientActionsEvidence()
+    {
+        var cut = Render<Compass>();
+        var model = Services.GetRequiredService<CompassPageModel>();
+        var bundle = CreateClientProfileBundle(model, "contoso", "2026-09-14T10:00:00Z");
+        var profileInput = cut.FindComponents<InputFile>().Single(component => component.Find("input").Id == "cc-profile-file");
+        profileInput.UploadFiles(InputFileContent.CreateFromText(bundle, "contoso.compass.json"));
+        var profile = Assert.Single(model.ClientProfiles);
+        cut.Find("#cc-client-profile").Change(profile.Id);
+
+        cut.Find("[data-preset=cloud-agent]").Click();
+
+        Assert.Equal(profile.Id, model.SelectedClientProfileId);
+        Assert.Equal("chat", model.Scenario.OperationId);
+        Assert.Contains("no reconciled Actions", model.Error);
     }
 
     [Fact]
@@ -248,6 +447,10 @@ public sealed class CompassTests : BunitContext
         var cut = Render<Compass>();
         var model = Services.GetRequiredService<CompassPageModel>();
         Assert.True(model.Import(bundle));
+        var profile = Services.GetRequiredService<CompassClientProfileCodec>()
+            .Create(bundle, "enterprise-compass.json", model.Configuration);
+        Assert.Equal(expected.Enterprise, profile.DisplayName);
+        Assert.Equal(expected.User, profile.SelectedUser);
         cut.FindComponent<InputFile>().UploadFiles(InputFileContent.CreateFromText(bundle, "enterprise-compass.json"));
         Assert.Null(model.Error);
         Assert.Null(model.EvidenceWarning);
@@ -682,4 +885,42 @@ public sealed class CompassTests : BunitContext
         cut.Find("#cc-bundle-text").Input(Services.GetRequiredService<ScenarioJson>().Serialize(scenario));
         cut.Find("#cc-import-text").Click();
     }
+
+    private string CreateClientProfileBundle(CompassPageModel model, string enterprise, string capturedAt)
+        => CreateClientProfileBundle(model.Scenario, model.Configuration, enterprise, capturedAt);
+
+    private string CreateClientProfileBundle(
+        SimulationScenario source,
+        EngineConfiguration configuration,
+        string enterprise,
+        string capturedAt)
+    {
+        var timestamp = DateTimeOffset.Parse(capturedAt);
+        var metadata = new Dictionary<string, string>(source.Metadata)
+        {
+            [CompassClientProfileMetadata.ContractKey] = CompassClientProfileMetadata.Contract,
+            [CompassClientProfileMetadata.EnterpriseKey] = enterprise,
+            [CompassClientProfileMetadata.SelectedUserKey] = source.Attribution!.UserId,
+            [CompassClientProfileMetadata.CaptureStartedAtKey] = timestamp.AddMinutes(-1).ToString("O"),
+            [CompassClientProfileMetadata.CaptureCompletedAtKey] = timestamp.ToString("O"),
+            [CompassClientProfileMetadata.SnapshotSha256Key] = new string('a', 64),
+            [CompassClientProfileMetadata.OverridesSha256Key] = new string('b', 64),
+            [CompassClientProfileMetadata.ScopeKey] = CompassClientProfileMetadata.Scope
+        };
+        var scenario = source with
+        {
+            Timestamp = timestamp,
+            BillingContext = source.BillingContext! with { BillingEntityId = enterprise },
+            Metadata = metadata
+        };
+        var bundles = Services.GetRequiredService<CompassBundleCodec>();
+        return bundles.Export(
+            CompassClientProfileMetadata.AddIntegrityDigest(scenario, configuration, bundles), configuration);
+    }
+
+    private static ClientProfileBrowserRecord BrowserRecord(CompassClientProfile profile, string document) => new()
+    {
+        Key = CompassBrowserPersistence.RecordKey(profile),
+        Document = document
+    };
 }
